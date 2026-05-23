@@ -1,0 +1,32 @@
+{
+  "name": "MEDIQ — Formation médicale",
+  "short_name": "MEDIQ",
+  "description": "Apprenez ECG, dermatologie, biochimie et plus avec des cas cliniques réels.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#f4f7f8",
+  "theme_color": "#0F766E",
+  "orientation": "portrait-primary",
+  "categories": ["education", "medical"],
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tableau de bord",
+      "url": "/dashboard",
+      "description": "Accéder aux modules d'apprentissage"
+    },
+    {
+      "name": "Révision SRS",
+      "url": "/review",
+      "description": "Réviser les cartes dues aujourd'hui"
+    }
+  ]
+}

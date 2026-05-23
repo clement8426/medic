@@ -1,0 +1,617 @@
+import { useState, useEffect, useMemo } from 'react'
+import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, ActivityIndicator, Platform } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { useRouter, useLocalSearchParams } from 'expo-router'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { getCaseById, getQuizzesByCase, getQuizProgress } from '../../lib/queries'
+import { supabase } from '../../lib/supabase'
+import type { Case, Quiz, QuizAnswer, UserProgress } from '../../lib/types'
+import { shuffleOptions, getQuizField, getDistractors, computeXp, computeResultMessage, getQuizCooldown, formatCountdown } from '../../lib/quiz-utils'
+import { resolveImageUrl } from '../../lib/image-utils'
+import { colors } from '../../constants/colors'
+
+type OptionState = 'idle' | 'selected' | 'correct' | 'wrong'
+
+export default function QuizQuestionScreen() {
+  const router = useRouter()
+  const { id } = useLocalSearchParams<{ id: string }>()
+
+  const [caseData, setCaseData] = useState<Case | null>(null)
+  const [quizzes, setQuizzes] = useState<Quiz[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const [moduleSlug, setModuleSlug] = useState('ecg')
+  const [stepIdx, setStepIdx] = useState(0)
+  const [selected, setSelected] = useState<string | null>(null)
+  const [revealed, setRevealed] = useState(false)
+  const [answers, setAnswers] = useState<QuizAnswer[]>([])
+  const [stepStartTime, setStepStartTime] = useState(Date.now())
+  const [progressMap, setProgressMap] = useState<Map<string, UserProgress>>(new Map())
+  const [cooldownMs, setCooldownMs] = useState(0)
+
+  // Shuffled options for each step — computed once per quiz load
+  const [shuffledOptions, setShuffledOptions] = useState<string[][]>([])
+
+  useEffect(() => {
+    if (!id) return
+    loadData()
+  }, [id])
+
+  async function loadData() {
+    setLoading(true)
+    setError(null)
+    try {
+      const [c, qs] = await Promise.all([
+        getCaseById(id as string),
+        getQuizzesByCase(id as string),
+      ])
+      if (!c) { setError('Cas introuvable'); setLoading(false); return }
+      setCaseData(c)
+      setQuizzes(qs)
+      // Fetch module slug for image URL resolution
+      const { data: mod } = await supabase
+        .from('modules')
+        .select('slug')
+        .eq('id', c.module_id)
+        .single()
+      if (mod?.slug) setModuleSlug(mod.slug)
+      // Shuffle options once
+      setShuffledOptions(qs.map(q => shuffleOptions(q, 'fr')))
+      setStepStartTime(Date.now())
+      // Charger progression utilisateur
+      const user = await supabase.auth.getUser()
+      const uid = user.data.user?.id
+      if (uid && qs.length > 0) {
+        const prog = await getQuizProgress(uid, qs.map(q => q.id))
+        const map = new Map<string, UserProgress>()
+        for (const p of prog) {
+          map.set(p.quiz_id, p)
+        }
+        setProgressMap(map)
+      }
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Timer cooldown
+  useEffect(() => {
+    if (!currentQuiz) return
+    const prog = progressMap.get(currentQuiz.id)
+    const cd = getQuizCooldown(prog)
+    if (cd.blocked) {
+      setCooldownMs(cd.remainingMs)
+      const interval = setInterval(() => {
+        setCooldownMs(prev => {
+          const next = prev - 1000
+          if (next <= 0) {
+            clearInterval(interval)
+            return 0
+          }
+          return next
+        })
+      }, 1000)
+      return () => clearInterval(interval)
+    } else {
+      setCooldownMs(0)
+    }
+  }, [currentQuiz?.id, progressMap])
+
+  const currentQuiz = quizzes[stepIdx]
+  const currentOptions = shuffledOptions[stepIdx] ?? []
+
+  function getOptionState(option: string): OptionState {
+    if (!revealed) {
+      return option === selected ? 'selected' : 'idle'
+    }
+    const correctAnswer = getQuizField(currentQuiz, 'correct', 'fr')
+    if (option === correctAnswer) return 'correct'
+    if (option === selected && option !== correctAnswer) return 'wrong'
+    return 'idle'
+  }
+
+  function handleSelect(option: string) {
+    if (revealed || cooldownMs > 0) return
+    setSelected(option)
+  }
+
+  function handleValidate() {
+    if (!selected || !currentQuiz || cooldownMs > 0) return
+    setRevealed(true)
+  }
+
+  function handleNext() {
+    if (!currentQuiz || !selected) return
+
+    const correctAnswer = getQuizField(currentQuiz, 'correct', 'fr')
+    const isCorrect = selected === correctAnswer
+    const timeMs = Date.now() - stepStartTime
+
+    const answer: QuizAnswer = {
+      quiz_id: currentQuiz.id,
+      step: currentQuiz.step,
+      theme: currentQuiz.theme,
+      correct_answer: correctAnswer,
+      given_answer: selected,
+      is_correct: isCorrect,
+      time_ms: timeMs,
+    }
+
+    const newAnswers = [...answers, answer]
+    setAnswers(newAnswers)
+
+    const isLast = stepIdx >= quizzes.length - 1
+
+    if (isLast) {
+      finishQuiz(newAnswers)
+    } else {
+      setStepIdx(s => s + 1)
+      setSelected(null)
+      setRevealed(false)
+      setStepStartTime(Date.now())
+    }
+  }
+
+  async function finishQuiz(finalAnswers: QuizAnswer[]) {
+    if (!caseData) return
+    const session = {
+      case_id: caseData.id,
+      case_label: `Cas #${caseData.case_number}`,
+      answers: finalAnswers,
+      total_xp: computeXp(finalAnswers),
+      started_at: Date.now(),
+    }
+    try {
+      await AsyncStorage.setItem(`mediq_session_${caseData.id}`, JSON.stringify(session))
+    } catch {}
+    router.replace(`/session/recap?case_id=${caseData.id}`)
+  }
+
+  function getImageUrl(c: Case): string {
+    return resolveImageUrl(c.image_url, moduleSlug)
+  }
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centered}><ActivityIndicator size="large" color={colors.primary} /></View>
+      </SafeAreaView>
+    )
+  }
+
+  if (error || !caseData || quizzes.length === 0) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error ?? 'Aucun quiz disponible'}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={() => router.back()}>
+            <Text style={styles.retryText}>Retour</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (!currentQuiz) return null
+
+  const isLast = stepIdx >= quizzes.length - 1
+  const correctAnswer = getQuizField(currentQuiz, 'correct', 'fr')
+  const question = getQuizField(currentQuiz, 'question', 'fr')
+  const explanationCorrect = getQuizField(currentQuiz, 'explanation_correct', 'fr')
+  const keyFinding = getQuizField(currentQuiz, 'key_finding', 'fr')
+  const isCurrentCorrect = selected === correctAnswer
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
+          <Text style={styles.closeText}>✕</Text>
+        </TouchableOpacity>
+
+        <View style={styles.progressSegments}>
+          {quizzes.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.segment,
+                i < stepIdx && styles.segmentDone,
+                i === stepIdx && styles.segmentActive,
+              ]}
+            />
+          ))}
+        </View>
+
+        <Text style={styles.stepCount}>{stepIdx + 1}/{quizzes.length}</Text>
+      </View>
+
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Theme badge */}
+        <View style={styles.themeBadge}>
+          <Text style={styles.themeBadgeText}>{currentQuiz.theme}</Text>
+        </View>
+
+        {/* ECG image (small) */}
+        {getImageUrl(caseData) ? (
+          <View style={styles.smallImageContainer}>
+            <Image
+              source={{ uri: getImageUrl(caseData) }}
+              style={styles.smallImage}
+              resizeMode="contain"
+            />
+          </View>
+        ) : null}
+
+        {/* Question */}
+        <Text style={styles.questionText}>{question}</Text>
+
+        {cooldownMs > 0 ? (
+          <View style={styles.cooldownBlock}>
+            <Text style={styles.cooldownEmoji}>⏳</Text>
+            <Text style={styles.cooldownTitle}>Question bloquée</Text>
+            <Text style={styles.cooldownText}>
+              Vous avez répondu incorrectement à cette question.{'
+'}
+              Attendez 24 heures pour réessayer.
+            </Text>
+            <View style={styles.cooldownTimerBox}>
+              <Text style={styles.cooldownTimer}>{formatCountdown(cooldownMs)}</Text>
+            </View>
+          </View>
+        ) : (
+          <>
+            {/* Options */}
+            <View style={styles.optionsContainer}>
+              {currentOptions.map((option, i) => {
+                const state = getOptionState(option)
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.optionButton, optionStyle(state)]}
+                    onPress={() => handleSelect(option)}
+                    disabled={revealed}
+                    activeOpacity={0.85}
+                  >
+                    <View style={[styles.optionLetter, optionLetterStyle(state)]}>
+                      <Text style={[styles.optionLetterText, optionLetterTextStyle(state)]}>
+                        {String.fromCharCode(65 + i)}
+                      </Text>
+                    </View>
+                    <Text style={[styles.optionText, optionTextStyle(state)]}>{option}</Text>
+                    {revealed && state === 'correct' && <Text style={styles.checkmark}>✓</Text>}
+                    {revealed && state === 'wrong' && <Text style={styles.crossmark}>✗</Text>}
+                  </TouchableOpacity>
+                )
+              })}
+            </View>
+
+            {/* Explanation panel after reveal */}
+            {revealed && (
+              <View style={[
+                styles.explanationPanel,
+                isCurrentCorrect ? styles.explanationPanelCorrect : styles.explanationPanelWrong,
+              ]}>
+                <Text style={[styles.explanationTitle, isCurrentCorrect ? styles.explanationTitleCorrect : styles.explanationTitleWrong]}>
+                  {isCurrentCorrect ? '✓ Correct !' : '✗ Incorrect'}
+                </Text>
+                {!isCurrentCorrect && (
+                  <Text style={styles.correctAnswerHint}>
+                    Bonne réponse : <Text style={{ fontWeight: '700' as any }}>{correctAnswer}</Text>
+                  </Text>
+                )}
+                {(explanationCorrect || keyFinding) ? (
+                  <Text style={styles.explanationText}>
+                    {explanationCorrect || keyFinding}
+                  </Text>
+                ) : null}
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
+
+      {/* CTA Button */}
+      {cooldownMs === 0 && (
+        <View style={styles.ctaContainer}>
+          {!revealed ? (
+            <TouchableOpacity
+              style={[styles.ctaButton, !selected && styles.ctaButtonDisabled]}
+              onPress={handleValidate}
+              disabled={!selected}
+            >
+              <Text style={styles.ctaButtonText}>Valider</Text>
+            </TouchableOpacity>
+          ) : isLast ? (
+            <TouchableOpacity style={styles.ctaButton} onPress={() => handleNext()}>
+              <Text style={styles.ctaButtonText}>Voir les résultats 🎉</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.ctaButton} onPress={() => handleNext()}>
+              <Text style={styles.ctaButtonText}>Suivant →</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </SafeAreaView>
+  )
+}
+
+function optionStyle(state: OptionState) {
+  switch (state) {
+    case 'selected': return { borderColor: colors.primary, backgroundColor: '#e0f2f1' }
+    case 'correct':  return { borderColor: colors.success, backgroundColor: colors.successBg }
+    case 'wrong':    return { borderColor: colors.error, backgroundColor: colors.errorBg }
+    default:         return {}
+  }
+}
+
+function optionLetterStyle(state: OptionState) {
+  switch (state) {
+    case 'selected': return { backgroundColor: colors.primary }
+    case 'correct':  return { backgroundColor: colors.success }
+    case 'wrong':    return { backgroundColor: colors.error }
+    default:         return {}
+  }
+}
+
+function optionLetterTextStyle(state: OptionState) {
+  return state !== 'idle' ? { color: 'white' } : {}
+}
+
+function optionTextStyle(state: OptionState) {
+  switch (state) {
+    case 'correct': return { color: colors.successText, fontWeight: '700' as any }
+    case 'wrong':   return { color: colors.errorText, fontWeight: '700' as any }
+    case 'selected': return { color: colors.primaryDark, fontWeight: '700' as any }
+    default:        return {}
+  }
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  header: {
+    backgroundColor: colors.primary,
+    paddingTop: Platform.OS === 'ios' ? 12 : 16,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  closeText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '700' as any,
+  },
+  progressSegments: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 4,
+  },
+  segment: {
+    flex: 1,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  segmentDone: {
+    backgroundColor: 'white',
+  },
+  segmentActive: {
+    backgroundColor: 'rgba(255,255,255,0.8)',
+  },
+  stepCount: {
+    color: 'white',
+    fontWeight: '700' as any,
+    fontSize: 13,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 24,
+  },
+  themeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#e0f2f1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 16,
+  },
+  themeBadgeText: {
+    color: colors.primaryDark,
+    fontWeight: '700' as any,
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  smallImageContainer: {
+    backgroundColor: 'black',
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  smallImage: {
+    width: '100%',
+    height: 150,
+    backgroundColor: 'black',
+  },
+  questionText: {
+    fontSize: 20,
+    fontWeight: '900' as any,
+    color: colors.text,
+    lineHeight: 28,
+    marginBottom: 20,
+  },
+  optionsContainer: {
+    gap: 10,
+  },
+  optionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 2,
+    borderColor: colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  optionLetter: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  optionLetterText: {
+    fontWeight: '900' as any,
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  optionText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  checkmark: {
+    fontSize: 18,
+    color: colors.success,
+    fontWeight: '900' as any,
+  },
+  crossmark: {
+    fontSize: 18,
+    color: colors.error,
+    fontWeight: '900' as any,
+  },
+  explanationPanel: {
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1.5,
+  },
+  explanationPanelCorrect: {
+    backgroundColor: colors.successBg,
+    borderColor: colors.success,
+  },
+  explanationPanelWrong: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fcd34d',
+  },
+  explanationTitle: {
+    fontWeight: '900' as any,
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  explanationTitleCorrect: {
+    color: colors.successText,
+  },
+  explanationTitleWrong: {
+    color: '#92400e',
+  },
+  correctAnswerHint: {
+    fontSize: 14,
+    color: '#92400e',
+    marginBottom: 6,
+  },
+  explanationText: {
+    fontSize: 14,
+    color: colors.text,
+    lineHeight: 20,
+  },
+  ctaContainer: {
+    padding: 16,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+    backgroundColor: 'white',
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  ctaButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+  },
+  ctaButtonDisabled: {
+    opacity: 0.4,
+  },
+  ctaButtonText: {
+    color: 'white',
+    fontWeight: '900' as any,
+    fontSize: 16,
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  errorText: {
+    color: colors.errorText,
+    fontSize: 15,
+    marginBottom: 12,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  retryText: {
+    color: 'white',
+    fontWeight: '700' as any,
+  },}
+  cooldownBlock: {
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#fde68a',
+    backgroundColor: '#fffbeb',
+    padding: 28,
+    alignItems: 'center' as any,
+    marginVertical: 20,
+  },
+  cooldownEmoji: {
+    fontSize: 40,
+    marginBottom: 12,
+  },
+  cooldownTitle: {
+    fontWeight: '900' as any,
+    fontSize: 16,
+    color: '#92400e',
+    marginBottom: 8,
+  },
+  cooldownText: {
+    fontSize: 13,
+    color: '#a16207',
+    lineHeight: 20,
+    textAlign: 'center' as any,
+    marginBottom: 16,
+  },
+  cooldownTimerBox: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  cooldownTimer: {
+    fontWeight: '900' as any,
+    fontSize: 18,
+    color: '#92400e',
+})
