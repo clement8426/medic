@@ -273,6 +273,23 @@ function EcgPanel({ caseData, moduleSlug }: { caseData: Case; moduleSlug: string
           </div>
         )}
 
+        {/* Rapport clinique */}
+        {caseData.report_fr && (
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 8 }}>
+              PRÉSENTATION CLINIQUE
+            </div>
+            <div style={{
+              background: '#f0fdf4', borderRadius: 12,
+              border: '1px solid #bbf7d0',
+              padding: '11px 13px',
+              fontSize: 12, color: '#166534', lineHeight: 1.6, fontWeight: 600,
+            }}>
+              {caseData.report_fr}
+            </div>
+          </div>
+        )}
+
         {/* Données cliniques */}
         {caseData.data_fr && Object.keys(caseData.data_fr).length > 0 && (
           <div style={{ marginTop: 6 }}>

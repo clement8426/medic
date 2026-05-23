@@ -327,6 +327,14 @@ export default function QuizQuestionScreen() {
           </View>
         </View>
 
+        {/* Rapport clinique */}
+        {caseData.report_fr ? (
+          <View style={styles.reportCard}>
+            <Text style={styles.reportTitle}>PRÉSENTATION CLINIQUE</Text>
+            <Text style={styles.reportText}>{caseData.report_fr}</Text>
+          </View>
+        ) : null}
+
         {/* Données cliniques */}
         {caseData.data_fr && Object.keys(caseData.data_fr).length > 0 && (
           <View style={styles.clinicalCard}>
@@ -647,6 +655,28 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     textTransform: 'uppercase' as any,
     letterSpacing: 0.8,
+  },
+  reportCard: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  reportTitle: {
+    fontSize: 10,
+    fontWeight: '900' as any,
+    color: '#166534',
+    textTransform: 'uppercase' as any,
+    letterSpacing: 0.8,
+    marginBottom: 6,
+  },
+  reportText: {
+    fontSize: 13,
+    color: '#166534',
+    lineHeight: 20,
+    fontWeight: '600' as any,
   },
   clinicalCard: {
     backgroundColor: 'white',

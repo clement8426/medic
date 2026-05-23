@@ -328,6 +328,23 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
                 </div>
               )}
 
+              {/* Rapport / contexte clinique */}
+              {caseData.report_fr && (
+                <div style={{
+                  background: 'linear-gradient(135deg,#f0fdf4,#dcfce7)',
+                  borderRadius: 22,
+                  border: '1px solid #86efac',
+                  padding: '20px 24px',
+                }}>
+                  <div style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#166534', marginBottom: 10 }}>
+                    PRÉSENTATION CLINIQUE
+                  </div>
+                  <p style={{ fontSize: 14, color: '#166534', lineHeight: 1.7, margin: 0, fontWeight: 600 }}>
+                    {caseData.report_fr}
+                  </p>
+                </div>
+              )}
+
               {/* Données cliniques */}
               {caseData.data_fr && Object.keys(caseData.data_fr).length > 0 && (
                 <div style={{
