@@ -95,8 +95,6 @@ export default function LearnScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Modules</Text>
-
         {loading && (
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={colors.primary} />
@@ -112,58 +110,92 @@ export default function LearnScreen() {
           </View>
         )}
 
-        {!loading && !error && modules.map(module => {
-          const count = caseCounts[module.id] ?? 0
-          const comingSoon = count === 0
-          return (
-            <TouchableOpacity
-              key={module.id}
-              style={[styles.card, comingSoon && styles.cardComingSoon]}
-              onPress={() => !comingSoon && router.push(`/module/${module.slug}`)}
-              activeOpacity={comingSoon ? 1 : 0.8}
-            >
-              <View style={styles.cardRow}>
-                <View style={[
-                  styles.moduleIcon,
-                  { backgroundColor: comingSoon ? '#f4f4f5' : (module.color ?? '#e0f2f1') },
-                ]}>
-                  <ModuleIcon
-                    icon={module.icon}
-                    size={24}
-                    color={comingSoon ? '#a1a1aa' : '#0F766E'}
-                    strokeWidth={1.75}
-                  />
+        {!loading && !error && (
+          <>
+            {[
+              { key: 'clinical' as const, label: 'Cas Cliniques' },
+              { key: 'classic' as const, label: 'Révision Classique' },
+            ].map(section => {
+              const sectionMods = modules.filter(m => (m.category ?? 'clinical') === section.key)
+              if (sectionMods.length === 0) return null
+              return (
+                <View key={section.key}>
+                  <Text style={styles.sectionTitle}>{section.label}</Text>
+                  {sectionMods.map(module => {
+                    const count = caseCounts[module.id] ?? 0
+                    const isClassic = module.category === 'classic'
+                    const comingSoon = !isClassic && count === 0
+
+                    function handlePress() {
+                      if (comingSoon) return
+                      if (isClassic) {
+                        router.push(`/quiz/classic/${module.id}`)
+                      } else {
+                        router.push(`/module/${module.slug}`)
+                      }
+                    }
+
+                    return (
+                      <TouchableOpacity
+                        key={module.id}
+                        style={[styles.card, comingSoon && styles.cardComingSoon]}
+                        onPress={handlePress}
+                        activeOpacity={comingSoon ? 1 : 0.8}
+                      >
+                        <View style={styles.cardRow}>
+                          <View style={[
+                            styles.moduleIcon,
+                            { backgroundColor: comingSoon ? '#f4f4f5' : isClassic ? '#e0f4ff' : (module.color ?? '#e0f2f1') },
+                          ]}>
+                            <ModuleIcon
+                              icon={module.icon}
+                              size={24}
+                              color={comingSoon ? '#a1a1aa' : isClassic ? '#0891b2' : '#0F766E'}
+                              strokeWidth={1.75}
+                            />
+                          </View>
+                          <View style={styles.cardContent}>
+                            <View style={styles.cardHeader}>
+                              <Text style={[styles.cardTitle, comingSoon && styles.textMuted]} numberOfLines={1}>
+                                {module.name_fr}
+                              </Text>
+                              {comingSoon ? (
+                                <View style={styles.badgeComingSoon}>
+                                  <Text style={styles.badgeComingSoonText}>À venir</Text>
+                                </View>
+                              ) : isClassic ? (
+                                <View style={styles.badgeClassic}>
+                                  <Text style={styles.badgeClassicText}>Classique</Text>
+                                </View>
+                              ) : (
+                                <View style={styles.badgeActive}>
+                                  <Text style={styles.badgeActiveText}>{count} cas</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={[styles.cardDesc, comingSoon && styles.textMuted]} numberOfLines={2}>
+                              {comingSoon ? 'Contenu en cours de préparation' : module.description_fr}
+                            </Text>
+                            {!comingSoon && !isClassic && (
+                              <View style={styles.progressBarBg}>
+                                <View style={[styles.progressBarFill, {
+                                  width: `${Math.min(100, Math.round(((moduleStats[module.id]?.cases_completed ?? 0) / count) * 100))}%`
+                                }]} />
+                              </View>
+                            )}
+                            {isClassic && (
+                              <Text style={styles.classicCta}>Réviser →</Text>
+                            )}
+                          </View>
+                        </View>
+                      </TouchableOpacity>
+                    )
+                  })}
                 </View>
-                <View style={styles.cardContent}>
-                  <View style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, comingSoon && styles.textMuted]} numberOfLines={1}>
-                      {module.name_fr}
-                    </Text>
-                    {comingSoon ? (
-                      <View style={styles.badgeComingSoon}>
-                        <Text style={styles.badgeComingSoonText}>⏳ À venir</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.badgeActive}>
-                        <Text style={styles.badgeActiveText}>{count} cas</Text>
-                      </View>
-                    )}
-                  </View>
-                  <Text style={[styles.cardDesc, comingSoon && styles.textMuted]} numberOfLines={2}>
-                    {comingSoon ? 'Contenu en cours de préparation' : module.description_fr}
-                  </Text>
-                  {!comingSoon && (
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, {
-                        width: `${Math.min(100, Math.round(((moduleStats[module.id]?.cases_completed ?? 0) / count) * 100))}%`
-                      }]} />
-                    </View>
-                  )}
-                </View>
-              </View>
-            </TouchableOpacity>
-          )
-        })}
+              )
+            })}
+          </>
+        )}
 
         {!loading && !error && modules.length === 0 && (
           <View style={styles.centered}>
@@ -371,5 +403,23 @@ const styles = StyleSheet.create({
   emptyText: {
     color: colors.textSecondary,
     fontSize: 15,
+  },
+  badgeClassic: {
+    backgroundColor: '#e0f4ff',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginLeft: 8,
+  },
+  badgeClassicText: {
+    color: '#0c4a6e',
+    fontSize: 11,
+    fontWeight: '700' as any,
+  },
+  classicCta: {
+    fontSize: 12,
+    fontWeight: '700' as any,
+    color: '#0891b2',
+    marginTop: 6,
   },
 })

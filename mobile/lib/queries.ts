@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Module, Case, Quiz, UserProgress, UserModuleStats, UserSearchResult, FriendWithStats, ReportReason, FeedbackType } from './types'
+import type { Module, Case, Quiz, ModuleQuiz, UserProgress, UserModuleStats, UserSearchResult, FriendWithStats, ReportReason, FeedbackType } from './types'
 
 // ── Modules ──────────────────────────────────────────────────────────────────
 
@@ -43,6 +43,18 @@ export async function getCaseById(id: string): Promise<Case | null> {
     .single()
   if (error) return null
   return data
+}
+
+// ── Module Quizzes (classic modules) ─────────────────────────────────────────
+
+export async function getModuleQuizzes(moduleId: string): Promise<ModuleQuiz[]> {
+  const { data, error } = await supabase
+    .from('module_quizzes')
+    .select('*')
+    .eq('module_id', moduleId)
+    .order('question_number')
+  if (error) throw error
+  return data ?? []
 }
 
 // ── Quizzes ───────────────────────────────────────────────────────────────────

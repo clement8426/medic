@@ -14,7 +14,24 @@ export interface Module {
   active: boolean
   sort_order: number
   difficulty_max: number
+  category: 'clinical' | 'classic'
   created_at: string
+}
+
+export interface ModuleQuiz {
+  id: string
+  module_id: string
+  question_number: number
+  theme: string | null
+  question_fr: string
+  question_en: string | null
+  question_de: string | null
+  question_it: string | null
+  correct_fr: string
+  distractors_fr: string[]
+  explanation_correct_fr: string | null
+  explanation_wrong_fr: string | null
+  validated: boolean
 }
 
 export interface Case {
