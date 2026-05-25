@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ScrollView,
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
+import { getProfile } from '../lib/queries'
 import { colors } from '../constants/colors'
 
 export default function LoginScreen() {
@@ -22,7 +23,9 @@ export default function LoginScreen() {
     if (error) {
       Alert.alert('Connexion impossible', error.message)
     } else {
-      router.replace('/(tabs)/learn')
+      const { data: { user } } = await supabase.auth.getUser()
+      const profile = user ? await getProfile(user.id) : null
+      router.replace(profile ? '/(tabs)/learn' : '/onboarding')
     }
   }
 

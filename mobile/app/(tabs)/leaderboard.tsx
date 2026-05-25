@@ -1,148 +1,157 @@
 import { useState, useEffect } from 'react'
-import { View, Text, ScrollView, StyleSheet, Platform, ActivityIndicator } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, Platform, ActivityIndicator, Image } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '../../lib/supabase'
 import { colors } from '../../constants/colors'
+import type { ProfTitle } from '../../lib/types'
+
+const TITLE_LABELS: Record<ProfTitle, { label: string; color: string; bg: string }> = {
+  medecin:       { label: 'Médecin',         color: '#166534', bg: '#f0fdf4' },
+  infirmier:     { label: 'Infirmier(ère)',   color: '#0c4a6e', bg: '#f0f9ff' },
+  sage_femme:    { label: 'Sage-femme',       color: '#4c1d95', bg: '#faf5ff' },
+  aide_soignant: { label: 'Aide-soignant(e)', color: '#9a3412', bg: '#fff7ed' },
+  etudiant:      { label: 'Étudiant(e)',      color: '#374151', bg: '#f9fafb' },
+  autre:         { label: 'Autre',            color: '#71717a', bg: '#fafafa' },
+}
 
 interface PlayerEntry {
   rank: number
-  initials: string
   userId: string
+  label: string
+  title: ProfTitle | null
+  avatarUrl: string | null
   xp: number
   streak: number
   isYou: boolean
 }
 
-const RANK_CONFIG: Record<number, { bg: string; text: string; emoji: string }> = {
-  1: { bg: '#FFF8E1', text: '#B8860B', emoji: '🥇' },
-  2: { bg: '#F5F5F5', text: '#757575', emoji: '🥈' },
-  3: { bg: '#FFF3E0', text: '#C65A00', emoji: '🥉' },
-}
+const RANK_COLORS = ['#f59e0b', '#94a3b8', '#cd7f32']
 
 export default function LeaderboardScreen() {
   const [players, setPlayers] = useState<PlayerEntry[]>([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser()
     const uid = user?.id ?? null
 
-    const { data, error } = await supabase
-      .from('user_module_stats')
-      .select('*')
+    const { data, error } = await supabase.rpc('get_leaderboard')
+    if (error) { console.error('[leaderboard]', error); setLoading(false); return }
 
-    if (error) {
-      console.error('[leaderboard] error:', error)
-      setLoading(false)
-      return
-    }
-
-    const map = new Map<string, { xp: number; streak: number }>()
-    for (const row of data ?? []) {
-      const rowXp = (row as Record<string, unknown>).xp as number | undefined ?? 0
-      const rowStreak = (row as Record<string, unknown>).current_streak as number | undefined ?? 0
-      const cur = map.get(row.user_id)
-      if (cur) {
-        cur.xp += rowXp
-        cur.streak = Math.max(cur.streak, rowStreak)
-      } else {
-        map.set(row.user_id, { xp: rowXp, streak: rowStreak })
-      }
-    }
-
-    const sorted: PlayerEntry[] = Array.from(map.entries())
-      .sort((a, b) => b[1].xp - a[1].xp)
-      .slice(0, 10)
-      .map(([userId, stats], i) => ({
-        rank: i + 1,
-        userId,
-        initials: userId.slice(0, 2).toUpperCase(),
-        xp: stats.xp,
-        streak: stats.streak,
-        isYou: userId === uid,
-      }))
+    type LeaderRow = { user_id: string; display_name: string; title: string | null; is_anonymous: boolean; avatar_url: string | null; total_xp: number; max_streak: number }
+    const sorted: PlayerEntry[] = (data as LeaderRow[] ?? []).map((row, i) => ({
+      rank: i + 1,
+      userId: row.user_id,
+      label: row.is_anonymous ? 'Anonyme' : (row.display_name ?? '?'),
+      title: row.is_anonymous ? null : (row.title as ProfTitle | null),
+      avatarUrl: row.is_anonymous ? null : (row.avatar_url ?? null),
+      xp: row.total_xp ?? 0,
+      streak: row.max_streak ?? 0,
+      isYou: row.user_id === uid,
+    }))
 
     setPlayers(sorted)
     setLoading(false)
   }
 
+  function Avatar({ p, size = 40 }: { p: PlayerEntry; size?: number }) {
+    const initial = p.label === 'Anonyme' ? '?' : p.label.slice(0, 1).toUpperCase()
+    const radius = size / 2
+    if (p.avatarUrl) return (
+      <Image source={{ uri: p.avatarUrl }} style={{ width: size, height: size, borderRadius: radius }} />
+    )
+    return (
+      <View style={{
+        width: size, height: size, borderRadius: radius,
+        backgroundColor: p.isYou ? colors.primary : '#f1f5f9',
+        alignItems: 'center', justifyContent: 'center',
+      }}>
+        <Text style={{ fontWeight: '900', fontSize: size * 0.38, color: p.isYou ? 'white' : colors.textSecondary }}>
+          {initial}
+        </Text>
+      </View>
+    )
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Classement</Text>
-        <Text style={styles.headerSub}>XP cumulés sur tous les modules</Text>
+    <SafeAreaView style={s.container} edges={['top']}>
+      <View style={s.header}>
+        <Text style={s.headerTitle}>Classement 🏆</Text>
+        <Text style={s.headerSub}>Tous les utilisateurs — classés par XP</Text>
       </View>
 
       {loading ? (
-        <View style={styles.centered}>
+        <View style={s.centered}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : players.length === 0 ? (
-        <View style={styles.centered}>
-          <Text style={styles.emptyEmoji}>🌱</Text>
-          <Text style={styles.emptyTitle}>Classement en construction</Text>
-          <Text style={styles.emptyBody}>
-            Complétez des cas pour apparaître ici en premier !
-          </Text>
+        <View style={s.centered}>
+          <Text style={s.emptyEmoji}>🌱</Text>
+          <Text style={s.emptyTitle}>Classement en construction</Text>
+          <Text style={s.emptyBody}>Complétez des cas pour apparaître ici !</Text>
         </View>
       ) : (
-        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          {players.map(player => {
-            const config = RANK_CONFIG[player.rank]
-            const isTop3 = player.rank <= 3
+        <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Podium top 3 */}
+          {players.length >= 3 && (
+            <View style={s.podium}>
+              {[players[1], players[0], players[2]].map((p, idx) => {
+                const rankIdx = idx === 1 ? 0 : idx === 0 ? 1 : 2
+                const podiumH = idx === 1 ? 72 : 52
+                return (
+                  <View key={p.rank} style={s.podiumItem}>
+                    <Avatar p={p} size={48} />
+                    <Text style={s.podiumName} numberOfLines={1}>{p.isYou ? 'Vous' : p.label}</Text>
+                    <Text style={s.podiumXp}>{p.xp.toLocaleString()} XP</Text>
+                    <View style={[s.podiumBar, { height: podiumH, backgroundColor: RANK_COLORS[rankIdx] }]}>
+                      <Text style={s.podiumBarEmoji}>{['🥇', '🥈', '🥉'][rankIdx]}</Text>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          )}
 
+          {/* Full list */}
+          {players.map(p => {
+            const titleMeta = p.title ? TITLE_LABELS[p.title] : null
             return (
               <View
-                key={player.userId}
+                key={p.rank}
                 style={[
-                  styles.playerCard,
-                  isTop3 && { backgroundColor: config.bg },
-                  player.isYou && styles.playerCardYou,
+                  s.card,
+                  p.isYou && s.cardYou,
                 ]}
               >
-                <View style={styles.rankContainer}>
-                  {isTop3 ? (
-                    <Text style={styles.rankEmoji}>{config.emoji}</Text>
-                  ) : (
-                    <Text style={[styles.rankNumber, { color: colors.textMuted }]}>
-                      {player.rank}
+                <Text style={[s.rankText, p.rank <= 3 && { color: RANK_COLORS[p.rank - 1] }]}>
+                  {p.rank <= 3 ? ['🥇', '🥈', '🥉'][p.rank - 1] : p.rank}
+                </Text>
+
+                <View style={{ marginHorizontal: 10 }}>
+                  <Avatar p={p} size={40} />
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <Text style={[s.playerName, p.isYou && { color: colors.primary }]}>
+                      {p.isYou ? 'Vous' : p.label}
                     </Text>
+                    {titleMeta && (
+                      <View style={[s.titleBadge, { backgroundColor: titleMeta.bg }]}>
+                        <Text style={[s.titleBadgeText, { color: titleMeta.color }]}>{titleMeta.label}</Text>
+                      </View>
+                    )}
+                  </View>
+                  {p.streak > 0 && (
+                    <Text style={s.streakText}>🔥 {p.streak} jour{p.streak > 1 ? 's' : ''}</Text>
                   )}
                 </View>
 
-                <View style={[
-                  styles.initialsCircle,
-                  isTop3 && { borderColor: config.text },
-                  player.isYou && styles.initialsCircleYou,
-                ]}>
-                  <Text style={[
-                    styles.initialsText,
-                    isTop3 && { color: config.text },
-                    player.isYou && styles.initialsTextYou,
-                  ]}>
-                    {player.initials}
-                  </Text>
-                </View>
-
-                <View style={styles.playerInfo}>
-                  <Text style={[styles.playerName, isTop3 && { color: config.text }, player.isYou && { color: colors.primary }]}>
-                    {player.isYou ? 'Vous' : player.initials}
-                    {player.isYou && <Text style={styles.youTag}> (vous)</Text>}
-                  </Text>
-                  {player.streak > 0 && (
-                    <Text style={styles.streakText}>🔥 {player.streak} jour{player.streak > 1 ? 's' : ''}</Text>
-                  )}
-                </View>
-
-                <View style={styles.xpContainer}>
-                  <Text style={[styles.xpValue, isTop3 && { color: config.text }, player.isYou && { color: colors.primary }]}>
-                    {player.xp.toLocaleString()}
-                  </Text>
-                  <Text style={styles.xpLabel}>XP</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[s.xpValue, p.isYou && { color: colors.primary }]}>{p.xp.toLocaleString()}</Text>
+                  <Text style={s.xpLabel}>XP</Text>
                 </View>
               </View>
             )
@@ -153,134 +162,30 @@ export default function LeaderboardScreen() {
   )
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  header: {
-    backgroundColor: colors.primary,
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 12 : 16,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '900' as any,
-    color: 'white',
-  },
-  headerSub: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 4,
-  },
-  centered: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-    gap: 12,
-  },
-  emptyEmoji: {
-    fontSize: 48,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '900' as any,
-    color: colors.text,
-    textAlign: 'center',
-  },
-  emptyBody: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  playerCard: {
-    backgroundColor: 'white',
-    borderRadius: 22,
-    padding: 14,
-    marginBottom: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  playerCardYou: {
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
-  rankContainer: {
-    width: 32,
-    alignItems: 'center',
-  },
-  rankEmoji: {
-    fontSize: 22,
-  },
-  rankNumber: {
-    fontSize: 16,
-    fontWeight: '900' as any,
-  },
-  initialsCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 10,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  initialsCircleYou: {
-    backgroundColor: colors.primary,
-  },
-  initialsText: {
-    fontWeight: '900' as any,
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  initialsTextYou: {
-    color: 'white',
-  },
-  playerInfo: {
-    flex: 1,
-  },
-  playerName: {
-    fontWeight: '700' as any,
-    fontSize: 15,
-    color: colors.text,
-  },
-  youTag: {
-    fontSize: 12,
-    fontWeight: '600' as any,
-    color: colors.primary,
-  },
-  streakText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  xpContainer: {
-    alignItems: 'flex-end',
-  },
-  xpValue: {
-    fontWeight: '900' as any,
-    fontSize: 16,
-    color: colors.primary,
-  },
-  xpLabel: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: '600' as any,
-  },
+const s = StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.bg },
+  header: { backgroundColor: colors.primary, padding: 20, paddingTop: Platform.OS === 'ios' ? 12 : 16 },
+  headerTitle: { fontSize: 22, fontWeight: '900' as any, color: 'white' },
+  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 4 },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 },
+  emptyEmoji: { fontSize: 48 },
+  emptyTitle: { fontSize: 18, fontWeight: '900' as any, color: colors.text, textAlign: 'center' },
+  emptyBody: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 22 },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 16, paddingBottom: 32 },
+  podium: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'center', gap: 10, marginBottom: 20 },
+  podiumItem: { alignItems: 'center', width: 100 },
+  podiumName: { fontSize: 11, fontWeight: '900' as any, color: colors.text, marginTop: 6, marginBottom: 2, textAlign: 'center' },
+  podiumXp: { fontSize: 10, color: colors.textMuted, marginBottom: 4 },
+  podiumBar: { width: '100%', borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  podiumBarEmoji: { fontSize: 20 },
+  card: { backgroundColor: 'white', borderRadius: 18, padding: 13, marginBottom: 9, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  cardYou: { borderWidth: 2, borderColor: colors.primary, backgroundColor: '#f0fdf4' },
+  rankText: { width: 32, textAlign: 'center', fontSize: 15, fontWeight: '900' as any, color: '#94a3b8' },
+  playerName: { fontWeight: '700' as any, fontSize: 15, color: colors.text },
+  titleBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 99 },
+  titleBadgeText: { fontSize: 10, fontWeight: '700' as any },
+  streakText: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  xpValue: { fontWeight: '900' as any, fontSize: 16, color: colors.primary },
+  xpLabel: { fontSize: 11, color: colors.textMuted, fontWeight: '600' as any },
 })

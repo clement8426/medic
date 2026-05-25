@@ -1,5 +1,21 @@
 import { supabase } from './supabase'
-import type { Module, Case, Quiz, ModuleQuiz, UserProgress, UserModuleStats, UserSearchResult, FriendWithStats, ReportReason, FeedbackType } from './types'
+import type { Module, Case, Quiz, ModuleQuiz, UserProgress, UserModuleStats, UserSearchResult, FriendWithStats, ReportReason, FeedbackType, Profile } from './types'
+
+// ── Profiles ──────────────────────────────────────────────────────────────────
+
+export async function getProfile(userId: string): Promise<Profile | null> {
+  const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+  return data
+}
+
+export async function upsertProfile(userId: string, profile: Partial<Omit<Profile, 'id' | 'created_at' | 'updated_at'>>): Promise<void> {
+  const { error } = await supabase.from('profiles').upsert({
+    id: userId,
+    ...profile,
+    updated_at: new Date().toISOString(),
+  })
+  if (error) throw error
+}
 
 // ── Modules ──────────────────────────────────────────────────────────────────
 
