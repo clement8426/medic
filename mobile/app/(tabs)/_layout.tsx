@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router'
-import { BookOpen, RefreshCw, Trophy, User } from 'lucide-react-native'
+import { BookOpen, Trophy, User } from 'lucide-react-native'
 import { colors } from '../../constants/colors'
 
 export default function TabsLayout() {
@@ -33,10 +33,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="review"
         options={{
-          title: 'Révision',
-          tabBarIcon: ({ color, size }) => (
-            <RefreshCw size={size} color={color} strokeWidth={1.75} />
-          ),
+          href: null,
         }}
       />
       <Tabs.Screen

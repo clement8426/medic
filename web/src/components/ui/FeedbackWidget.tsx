@@ -58,7 +58,7 @@ export function FeedbackWidget() {
         onClick={() => setOpen(o => !o)}
         aria-label="Donner mon avis"
         style={{
-          position: 'fixed', bottom: 24, right: 24, zIndex: 9000,
+          position: 'fixed', bottom: 80, right: 24, zIndex: 9000,
           width: 48, height: 48, borderRadius: 24,
           background: open ? '#09090b' : '#0F766E',
           border: 'none', cursor: 'pointer',
@@ -76,7 +76,7 @@ export function FeedbackWidget() {
       {/* Panel */}
       {open && (
         <div style={{
-          position: 'fixed', bottom: 84, right: 24, zIndex: 8999,
+          position: 'fixed', bottom: 140, right: 24, zIndex: 8999,
           width: 320, background: 'white',
           borderRadius: 20, boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
           border: '1px solid #e4e4e7', overflow: 'hidden',

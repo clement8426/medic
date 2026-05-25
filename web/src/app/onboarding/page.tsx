@@ -1,265 +1,193 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { upsertProfile } from '@/lib/queries'
+import type { ProfTitle } from '@/lib/types'
 
-const SPECIALTIES = [
-  { value: 'cardiologue', label: 'Cardiologue', icon: '❤️' },
-  { value: 'interne', label: 'Interne', icon: '🏥' },
-  { value: 'urgentiste', label: 'Urgentiste', icon: '🚨' },
-  { value: 'etudiant', label: 'Étudiant', icon: '📚' },
-  { value: 'autre', label: 'Autre', icon: '⚕️' },
-]
-
-const GOALS = [
-  { value: 1, label: '1 cas / jour', sub: 'Débutant', icon: '🌱' },
-  { value: 3, label: '3 cas / jour', sub: 'Régulier', icon: '💪' },
-  { value: 5, label: '5 cas / jour', sub: 'Intensif', icon: '🔥' },
-  { value: 10, label: '10 cas / jour', sub: 'Expert', icon: '⚡' },
+const TITLES: { value: ProfTitle; label: string; emoji: string; color: string; bg: string }[] = [
+  { value: 'medecin',       label: 'Médecin',         emoji: '🩺', color: '#166534', bg: '#f0fdf4' },
+  { value: 'infirmier',     label: 'Infirmier(ère)',   emoji: '💉', color: '#0c4a6e', bg: '#f0f9ff' },
+  { value: 'sage_femme',    label: 'Sage-femme',       emoji: '👶', color: '#4c1d95', bg: '#faf5ff' },
+  { value: 'aide_soignant', label: 'Aide-soignant(e)', emoji: '🏥', color: '#9a3412', bg: '#fff7ed' },
+  { value: 'etudiant',      label: 'Étudiant(e)',      emoji: '📚', color: '#374151', bg: '#f9fafb' },
+  { value: 'autre',         label: 'Autre',            emoji: '✨', color: '#71717a', bg: '#fafafa' },
 ]
 
 export default function OnboardingPage() {
   const router = useRouter()
   const [step, setStep] = useState(1)
-  const [specialty, setSpecialty] = useState('')
-  const [goal, setGoal] = useState<number | null>(null)
+  const [pseudo, setPseudo] = useState('')
+  const [title, setTitle] = useState<ProfTitle | null>(null)
+  const [gender, setGender] = useState<'homme' | 'femme' | 'autre' | null>(null)
+  const [institution, setInstitution] = useState('')
+  const [showEmail, setShowEmail] = useState(false)
+  const [isAnonymous, setIsAnonymous] = useState(false)
+  const [rgpdConsent, setRgpdConsent] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  function handleFinish() {
-    localStorage.setItem('mediq_onboarding', JSON.stringify({ specialty, goal, completed: true }))
-    router.push('/dashboard')
+  async function handleSubmit() {
+    if (!rgpdConsent) { setError('Vous devez accepter la politique de confidentialité'); return }
+    setLoading(true); setError(null)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Non connecté')
+      await upsertProfile(user.id, {
+        pseudo: pseudo.trim(),
+        title,
+        gender,
+        institution: institution.trim() || null,
+        show_email: showEmail,
+        is_anonymous: isAnonymous,
+      })
+      router.push('/dashboard')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Erreur')
+      setLoading(false)
+    }
+  }
+
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '13px 16px', borderRadius: 14,
+    border: '2px solid #e4e4e7', fontSize: 14, fontWeight: 600,
+    color: '#09090b', outline: 'none', boxSizing: 'border-box',
+    background: '#fafafa', fontFamily: 'system-ui,sans-serif',
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: '#f4f7f8',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '32px 16px',
-    }}>
-      <div style={{ width: '100%', maxWidth: 520 }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <div style={{
-            width: 52, height: 52, borderRadius: 18,
-            background: 'linear-gradient(135deg,#0F766E,#0891b2)',
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 26, marginBottom: 10,
-          }}>❤️</div>
-          <div style={{ fontWeight: 900, fontSize: 22, color: '#09090b' }}>MEDIQ</div>
-          <div style={{ fontSize: 13, color: '#71717a', marginTop: 2 }}>Bienvenue — Configurons votre profil</div>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg,#0F766E,#134e4a)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, fontFamily: 'system-ui,sans-serif' }}>
+      <div style={{ width: '100%', maxWidth: 480 }}>
+
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 18, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '0 auto 12px' }}>❤️</div>
+          <div style={{ fontWeight: 900, fontSize: 22, color: 'white' }}>Créez votre profil</div>
+          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>Étape {step} / 3</div>
         </div>
 
-        {/* Step indicator */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 28, justifyContent: 'center' }}>
-          {[1, 2, 3].map(s => (
-            <div key={s} style={{
-              width: s === step ? 28 : 10,
-              height: 10,
-              borderRadius: 99,
-              background: s <= step ? '#0F766E' : '#e4e4e7',
-              transition: 'all 0.25s',
-            }} />
-          ))}
+        <div style={{ height: 4, background: 'rgba(255,255,255,0.15)', borderRadius: 99, marginBottom: 24 }}>
+          <div style={{ height: '100%', width: `${(step / 3) * 100}%`, background: 'white', borderRadius: 99, transition: 'width 0.3s' }} />
         </div>
 
-        {/* Card */}
-        <div style={{
-          background: 'white',
-          borderRadius: 22,
-          border: '1px solid #e4e4e7',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
-          padding: '32px 28px',
-        }}>
+        <div style={{ background: 'white', borderRadius: 24, padding: 28, boxShadow: '0 8px 40px rgba(0,0,0,0.25)' }}>
+
+          {/* STEP 1 — identité pro */}
           {step === 1 && (
             <>
-              <div style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 8 }}>
-                ÉTAPE 1 / 3
-              </div>
-              <div style={{ fontWeight: 900, fontSize: 20, color: '#09090b', marginBottom: 6 }}>
-                Votre spécialité
-              </div>
-              <div style={{ fontSize: 13, color: '#71717a', marginBottom: 22 }}>
-                Cela nous permet d'adapter votre expérience d'apprentissage.
+              <div style={{ fontWeight: 900, fontSize: 18, color: '#09090b', marginBottom: 4 }}>Qui êtes-vous ?</div>
+              <div style={{ fontSize: 13, color: '#71717a', marginBottom: 20 }}>Ces infos permettent à vos collègues de vous identifier dans le classement.</div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>Pseudo *</label>
+                <input style={inp} placeholder="Dr. Martin, Inf. Dupont…" value={pseudo} onChange={e => setPseudo(e.target.value)} maxLength={40} />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {SPECIALTIES.map(sp => (
-                  <button
-                    key={sp.value}
-                    onClick={() => setSpecialty(sp.value)}
-                    style={{
-                      padding: '16px 14px',
-                      borderRadius: 16,
-                      border: `2px solid ${specialty === sp.value ? '#0F766E' : '#e4e4e7'}`,
-                      background: specialty === sp.value ? '#f0fdf4' : 'white',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <div style={{ fontSize: 24, marginBottom: 6 }}>{sp.icon}</div>
-                    <div style={{ fontWeight: 900, fontSize: 14, color: specialty === sp.value ? '#0F766E' : '#09090b' }}>
-                      {sp.label}
-                    </div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 10 }}>Titre professionnel *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {TITLES.map(t => (
+                  <button key={t.value} onClick={() => setTitle(t.value)} style={{
+                    padding: '12px 14px', borderRadius: 14,
+                    border: `2px solid ${title === t.value ? t.color : '#e4e4e7'}`,
+                    background: title === t.value ? t.bg : 'white',
+                    cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8,
+                    fontFamily: 'system-ui,sans-serif',
+                  }}>
+                    <span style={{ fontSize: 18 }}>{t.emoji}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: title === t.value ? t.color : '#374151' }}>{t.label}</span>
                   </button>
                 ))}
               </div>
 
-              <button
-                onClick={() => specialty && setStep(2)}
-                disabled={!specialty}
-                style={{
-                  marginTop: 22,
-                  width: '100%',
-                  background: specialty ? 'linear-gradient(135deg,#0F766E,#0891b2)' : '#e4e4e7',
-                  color: specialty ? 'white' : '#94a3b8',
-                  border: 'none',
-                  borderRadius: 16,
-                  borderBottom: specialty ? '4px solid #0a5550' : '4px solid #d4d4d8',
-                  padding: '14px 20px',
-                  fontSize: 15,
-                  fontWeight: 900,
-                  cursor: specialty ? 'pointer' : 'not-allowed',
-                }}
-              >
+              <button onClick={() => { if (pseudo.trim() && title) setStep(2) }} disabled={!pseudo.trim() || !title}
+                style={{ width: '100%', marginTop: 24, padding: '14px', borderRadius: 14, background: pseudo.trim() && title ? 'linear-gradient(135deg,#0F766E,#0891b2)' : '#e4e4e7', color: 'white', border: 'none', fontWeight: 900, fontSize: 15, cursor: pseudo.trim() && title ? 'pointer' : 'default', fontFamily: 'system-ui,sans-serif' }}>
                 Continuer →
               </button>
             </>
           )}
 
+          {/* STEP 2 — infos optionnelles */}
           {step === 2 && (
             <>
-              <div style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 8 }}>
-                ÉTAPE 2 / 3
-              </div>
-              <div style={{ fontWeight: 900, fontSize: 20, color: '#09090b', marginBottom: 6 }}>
-                Objectif quotidien
-              </div>
-              <div style={{ fontSize: 13, color: '#71717a', marginBottom: 22 }}>
-                Combien de cas souhaitez-vous étudier chaque jour ?
-              </div>
+              <div style={{ fontWeight: 900, fontSize: 18, color: '#09090b', marginBottom: 4 }}>Infos complémentaires</div>
+              <div style={{ fontSize: 13, color: '#71717a', marginBottom: 20 }}>Tout est optionnel — modifiable à tout moment dans votre profil.</div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {GOALS.map(g => (
-                  <button
-                    key={g.value}
-                    onClick={() => setGoal(g.value)}
-                    style={{
-                      padding: '14px 18px',
-                      borderRadius: 16,
-                      border: `2px solid ${goal === g.value ? '#0F766E' : '#e4e4e7'}`,
-                      background: goal === g.value ? '#f0fdf4' : 'white',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 14,
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <span style={{ fontSize: 24 }}>{g.icon}</span>
-                    <div style={{ textAlign: 'left' }}>
-                      <div style={{ fontWeight: 900, fontSize: 14, color: goal === g.value ? '#0F766E' : '#09090b' }}>
-                        {g.label}
-                      </div>
-                      <div style={{ fontSize: 12, color: '#71717a' }}>{g.sub}</div>
-                    </div>
-                    {goal === g.value && (
-                      <span style={{ marginLeft: 'auto', color: '#0F766E', fontWeight: 900 }}>✓</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-                <button
-                  onClick={() => setStep(1)}
-                  style={{
-                    flex: 1,
-                    background: 'white',
-                    color: '#71717a',
-                    border: '2px solid #e4e4e7',
-                    borderRadius: 16,
-                    padding: '13px 18px',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  ← Retour
-                </button>
-                <button
-                  onClick={() => goal && setStep(3)}
-                  disabled={!goal}
-                  style={{
-                    flex: 2,
-                    background: goal ? 'linear-gradient(135deg,#0F766E,#0891b2)' : '#e4e4e7',
-                    color: goal ? 'white' : '#94a3b8',
-                    border: 'none',
-                    borderRadius: 16,
-                    borderBottom: goal ? '4px solid #0a5550' : '4px solid #d4d4d8',
-                    padding: '13px 18px',
-                    fontSize: 14,
-                    fontWeight: 900,
-                    cursor: goal ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  Continuer →
-                </button>
-              </div>
-            </>
-          )}
-
-          {step === 3 && (
-            <>
-              <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                <div style={{ fontSize: 56, marginBottom: 14 }}>🎉</div>
-                <div style={{ fontWeight: 900, fontSize: 22, color: '#09090b', marginBottom: 8 }}>
-                  Tout est prêt !
-                </div>
-                <div style={{ fontSize: 14, color: '#71717a', lineHeight: 1.5, marginBottom: 28 }}>
-                  Votre profil est configuré.<br/>
-                  Commencez votre premier cas maintenant !
-                </div>
-
-                <div style={{
-                  background: '#f4f7f8',
-                  borderRadius: 16,
-                  padding: '16px 20px',
-                  marginBottom: 24,
-                  textAlign: 'left',
-                }}>
-                  {[
-                    { label: 'Spécialité', value: SPECIALTIES.find(s => s.value === specialty)?.label ?? specialty },
-                    { label: 'Objectif', value: GOALS.find(g => g.value === goal)?.label ?? `${goal} cas/jour` },
-                  ].map(row => (
-                    <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, color: '#71717a', fontWeight: 700 }}>{row.label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 900, color: '#09090b' }}>{row.value}</span>
-                    </div>
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 8 }}>Genre</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {([['homme','Homme'],['femme','Femme'],['autre','Autre']] as const).map(([v, l]) => (
+                    <button key={v} onClick={() => setGender(gender === v ? null : v)} style={{
+                      flex: 1, padding: '10px', borderRadius: 12,
+                      border: `2px solid ${gender === v ? '#0F766E' : '#e4e4e7'}`,
+                      background: gender === v ? '#f0fdf4' : 'white',
+                      cursor: 'pointer', fontWeight: 700, fontSize: 13,
+                      color: gender === v ? '#0F766E' : '#374151', fontFamily: 'system-ui,sans-serif',
+                    }}>{l}</button>
                   ))}
                 </div>
+              </div>
 
-                <button
-                  onClick={handleFinish}
-                  style={{
-                    width: '100%',
-                    background: 'linear-gradient(135deg,#0F766E,#0891b2)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: 16,
-                    borderBottom: '4px solid #0a5550',
-                    padding: '16px 24px',
-                    fontSize: 15,
-                    fontWeight: 900,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Commencer →
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#374151', display: 'block', marginBottom: 6 }}>Établissement</label>
+                <input style={inp} placeholder="CHU de Lyon, Clinique Saint-Jean…" value={institution} onChange={e => setInstitution(e.target.value)} maxLength={80} />
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Visible dans le classement pour retrouver vos collègues du même établissement</div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                <button onClick={() => setStep(1)} style={{ flex: 1, padding: '14px', borderRadius: 14, border: '2px solid #e4e4e7', background: 'white', color: '#374151', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'system-ui,sans-serif' }}>← Retour</button>
+                <button onClick={() => setStep(3)} style={{ flex: 2, padding: '14px', borderRadius: 14, background: 'linear-gradient(135deg,#0F766E,#0891b2)', color: 'white', border: 'none', fontWeight: 900, fontSize: 15, cursor: 'pointer', fontFamily: 'system-ui,sans-serif' }}>Continuer →</button>
+              </div>
+            </>
+          )}
+
+          {/* STEP 3 — confidentialité + consentement */}
+          {step === 3 && (
+            <>
+              <div style={{ fontWeight: 900, fontSize: 18, color: '#09090b', marginBottom: 4 }}>Confidentialité</div>
+              <div style={{ fontSize: 13, color: '#71717a', marginBottom: 20 }}>Contrôlez ce que les autres utilisateurs voient de vous.</div>
+
+              {[
+                { label: 'Afficher mon email', sub: 'Votre email sera visible sur votre profil et dans le classement', value: showEmail, set: setShowEmail },
+                { label: 'Mode anonyme', sub: 'Seul votre pseudo est visible — titre et établissement masqués', value: isAnonymous, set: setIsAnonymous },
+              ].map(({ label, sub, value, set }) => (
+                <div key={label} onClick={() => set(!value)} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px', borderRadius: 14, border: `2px solid ${value ? '#0F766E' : '#e4e4e7'}`, background: value ? '#f0fdf4' : '#fafafa', cursor: 'pointer', marginBottom: 10 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, background: value ? '#0F766E' : 'white', border: `2px solid ${value ? '#0F766E' : '#d4d4d8'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {value && <span style={{ color: 'white', fontSize: 13, fontWeight: 900 }}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: '#09090b' }}>{label}</div>
+                    <div style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>{sub}</div>
+                  </div>
+                </div>
+              ))}
+
+              <div onClick={() => setRgpdConsent(!rgpdConsent)} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px', borderRadius: 14, border: `2px solid ${rgpdConsent ? '#0F766E' : '#fca5a5'}`, background: rgpdConsent ? '#f0fdf4' : '#fff5f5', cursor: 'pointer', marginTop: 4 }}>
+                <div style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1, background: rgpdConsent ? '#0F766E' : 'white', border: `2px solid ${rgpdConsent ? '#0F766E' : '#fca5a5'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {rgpdConsent && <span style={{ color: 'white', fontSize: 13, fontWeight: 900 }}>✓</span>}
+                </div>
+                <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.6 }}>
+                  J&apos;ai lu et j&apos;accepte la{' '}
+                  <a href="/rgpd" target="_blank" onClick={e => e.stopPropagation()} style={{ color: '#0F766E', fontWeight: 700 }}>
+                    politique de confidentialité
+                  </a>{' '}
+                  de MEDIQ. *
+                </div>
+              </div>
+
+              {error && <div style={{ marginTop: 12, background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#991b1b', fontWeight: 600 }}>{error}</div>}
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                <button onClick={() => setStep(2)} style={{ flex: 1, padding: '14px', borderRadius: 14, border: '2px solid #e4e4e7', background: 'white', color: '#374151', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'system-ui,sans-serif' }}>← Retour</button>
+                <button onClick={handleSubmit} disabled={loading || !rgpdConsent}
+                  style={{ flex: 2, padding: '14px', borderRadius: 14, background: rgpdConsent ? 'linear-gradient(135deg,#0F766E,#0891b2)' : '#e4e4e7', color: 'white', border: 'none', fontWeight: 900, fontSize: 15, cursor: rgpdConsent && !loading ? 'pointer' : 'default', fontFamily: 'system-ui,sans-serif' }}>
+                  {loading ? 'Enregistrement…' : 'Commencer →'}
                 </button>
               </div>
             </>
           )}
+        </div>
+
+        <div style={{ textAlign: 'center', marginTop: 16, fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+          Vos données sont protégées conformément au RGPD · <a href="/rgpd" target="_blank" style={{ color: 'rgba(255,255,255,0.7)' }}>En savoir plus</a>
         </div>
       </div>
     </div>

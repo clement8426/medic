@@ -291,33 +291,42 @@ function EcgPanel({ caseData, moduleSlug }: { caseData: Case; moduleSlug: string
         )}
 
         {/* Données cliniques */}
-        {caseData.data_fr && Object.keys(caseData.data_fr).length > 0 && (
-          <div style={{ marginTop: 6 }}>
-            <div style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 8 }}>
-              DONNÉES CLINIQUES
+        {(() => {
+          const HIDDEN = new Set(['report', 'report_fr', 'report_de', 'report_en', 'report_it'])
+          const entries = Object.entries(caseData.data_fr ?? {}).filter(([k]) => !HIDDEN.has(k))
+          if (entries.length === 0) return null
+          return (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 8 }}>
+                DONNÉES CLINIQUES
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 3 }}>
+                {entries.map(([key, value]) => {
+                  const label = key.replace(/_/g, ' ')
+                  const val = Array.isArray(value)
+                    ? (value as unknown[]).join(', ')
+                    : typeof value === 'object' && value !== null
+                      ? JSON.stringify(value)
+                      : String(value ?? '—')
+                  return (
+                    <div key={key} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                      gap: 12, padding: '6px 0',
+                      borderBottom: '1px solid #f4f4f5',
+                    }}>
+                      <span style={{ fontSize: 12, color: '#94a3b8', fontWeight: 600, flexShrink: 0, textTransform: 'capitalize' as const }}>
+                        {label}
+                      </span>
+                      <span style={{ fontSize: 13, color: '#09090b', fontWeight: 700, textAlign: 'right' as const }}>
+                        {val}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 5 }}>
-              {Object.entries(caseData.data_fr).map(([key, value]) => (
-                <div key={key} style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '7px 10px', borderRadius: 10,
-                  background: '#f9fafb', border: '1px solid #f0f0f0',
-                }}>
-                  <span style={{ fontSize: 12, color: '#71717a', fontWeight: 700, textTransform: 'capitalize' as const }}>
-                    {key.replace(/_/g, ' ')}
-                  </span>
-                  <span style={{ fontSize: 12, color: '#09090b', fontWeight: 900 }}>
-                    {Array.isArray(value)
-                      ? (value as unknown[]).join(', ')
-                      : typeof value === 'object' && value !== null
-                        ? JSON.stringify(value)
-                        : String(value ?? '—')}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
     </div>
   )
@@ -462,8 +471,13 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
 
     // Save to DB if logged in
     if (userId) {
-      const { nextReviewAt, easeFactor, intervalDays } = computeNextReview(isCorrect, 2.5, 1)
-      await saveQuizAnswer(userId, {
+      const prev = progressMap.get(quiz.id)
+      const { nextReviewAt, easeFactor, intervalDays } = computeNextReview(
+        isCorrect,
+        prev?.ease_factor ?? 2.5,
+        prev?.interval_days ?? 1,
+      )
+      saveQuizAnswer(userId, {
         case_id: caseId,
         quiz_id: quiz.id,
         answered_correctly: isCorrect,
@@ -472,6 +486,21 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
         next_review_at: nextReviewAt,
         ease_factor: easeFactor,
         interval_days: intervalDays,
+      }).then(() => {
+        setProgressMap(prev => {
+          const next = new Map(prev)
+          next.set(quiz.id, {
+            ...(prev.get(quiz.id) ?? { user_id: userId, quiz_id: quiz.id, case_id: caseId }),
+            answered_correctly: isCorrect,
+            answer_given: selected ?? '',
+            time_ms: timeMs,
+            next_review_at: nextReviewAt,
+            ease_factor: easeFactor,
+            interval_days: intervalDays,
+            updated_at: new Date().toISOString(),
+          } as UserProgress)
+          return next
+        })
       }).catch(() => {})
     }
 

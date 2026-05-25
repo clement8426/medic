@@ -10,15 +10,14 @@ type NavItem = { href: string; Icon: React.ComponentType<LucideProps>; label: st
 
 const NAV: NavItem[] = [
   { href: '/dashboard',   Icon: Home,      label: 'Tableau de bord' },
-  { href: '/review',      Icon: BookOpen,  label: 'Révision SRS'    },
   { href: '/leaderboard', Icon: Trophy,    label: 'Classement'      },
   { href: '/friends',     Icon: Users,     label: 'Amis'            },
   { href: '/profile',     Icon: User,      label: 'Profil'          },
   { href: '/settings',    Icon: Settings,  label: 'Paramètres'      },
 ]
 
-export function Sidebar({ xp = 0, streak = 0, initials = '?' }: {
-  xp?: number; streak?: number; initials?: string
+export function Sidebar({ xp = 0, streak = 0, initials = '?', avatarUrl }: {
+  xp?: number; streak?: number; initials?: string; avatarUrl?: string | null
 }) {
   const pathname = usePathname()
   const router   = useRouter()
@@ -120,15 +119,19 @@ export function Sidebar({ xp = 0, streak = 0, initials = '?' }: {
 
         {/* Footer */}
         <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 12,
-              background: 'rgba(255,255,255,0.2)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontWeight: 900, color: 'white', fontSize: 13,
-            }}>
-              {initials}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="avatar" style={{ width: 34, height: 34, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }} />
+            ) : (
+              <div style={{
+                width: 34, height: 34, borderRadius: 12,
+                background: 'rgba(255,255,255,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 900, color: 'white', fontSize: 13,
+              }}>
+                {initials}
+              </div>
+            )}
             <button
               onClick={handleLogout}
               style={{
@@ -141,12 +144,15 @@ export function Sidebar({ xp = 0, streak = 0, initials = '?' }: {
               Déconnexion
             </button>
           </div>
+          <a href="/rgpd" style={{ fontSize: 10, color: 'rgba(167,243,208,0.35)', fontWeight: 600, textDecoration: 'none', letterSpacing: '0.04em' }}>
+            Politique de confidentialité
+          </a>
         </div>
       </aside>
 
       {/* Mobile bottom navigation */}
       <div className="mobile-nav">
-        {NAV.slice(0, 4).map(({ href, Icon, label }) => {
+        {[NAV[0], NAV[1], NAV[3], NAV[4]].map(({ href, Icon, label }) => {
           const active = pathname.startsWith(href)
           return (
             <button

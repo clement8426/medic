@@ -126,14 +126,19 @@ export interface UserModuleStats {
   level: number
 }
 
+export type ProfTitle = 'medecin' | 'infirmier' | 'sage_femme' | 'aide_soignant' | 'etudiant' | 'autre'
+
 export interface Profile {
   id: string
-  username: string
+  pseudo: string
+  title: ProfTitle | null
+  gender: 'homme' | 'femme' | 'autre' | null
+  institution: string | null
+  show_email: boolean
+  is_anonymous: boolean
   avatar_url: string | null
-  specialty: string | null
-  daily_goal: number
-  ui_language: Lang
   created_at: string
+  updated_at: string
 }
 
 export type ReportReason = 'wrong_answer' | 'bad_translation' | 'unclear_question' | 'wrong_options' | 'wrong_difficulty' | 'other'

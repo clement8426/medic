@@ -346,39 +346,46 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Données cliniques */}
-              {caseData.data_fr && Object.keys(caseData.data_fr).length > 0 && (
-                <div style={{
-                  background: 'white',
-                  borderRadius: 22,
-                  border: '1px solid #e4e4e7',
-                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-                  padding: '20px 24px',
-                }}>
-                  <div style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>
-                    DONNÉES CLINIQUES
+              {(() => {
+                const HIDDEN = new Set(['report', 'report_fr', 'report_de', 'report_en', 'report_it'])
+                const entries = Object.entries(caseData.data_fr ?? {}).filter(([k]) => !HIDDEN.has(k))
+                if (entries.length === 0) return null
+                return (
+                  <div style={{
+                    background: 'white',
+                    borderRadius: 22,
+                    border: '1px solid #e4e4e7',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                    padding: '20px 24px',
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>
+                      DONNÉES CLINIQUES
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {entries.map(([key, value]) => {
+                        const val = Array.isArray(value)
+                          ? (value as unknown[]).join(', ')
+                          : typeof value === 'object' && value !== null
+                            ? JSON.stringify(value)
+                            : String(value ?? '—')
+                        return (
+                          <div key={key} style={{
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+                            gap: 12, padding: '8px 0', borderBottom: '1px solid #f4f4f5',
+                          }}>
+                            <span style={{ fontSize: 13, color: '#94a3b8', fontWeight: 600, textTransform: 'capitalize' as const, flexShrink: 0 }}>
+                              {key.replace(/_/g, ' ')}
+                            </span>
+                            <span style={{ fontSize: 13, color: '#09090b', fontWeight: 700, textAlign: 'right' as const }}>
+                              {val}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {Object.entries(caseData.data_fr).map(([key, value]) => (
-                      <div key={key} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
-                        padding: '10px 14px', borderRadius: 12,
-                        background: '#f9fafb', border: '1px solid #f0f0f0',
-                      }}>
-                        <span style={{ fontSize: 13, color: '#71717a', fontWeight: 700, textTransform: 'capitalize' as const, flex: '0 0 auto', marginRight: 12 }}>
-                          {key.replace(/_/g, ' ')}
-                        </span>
-                        <span style={{ fontSize: 13, color: '#09090b', fontWeight: 900, textAlign: 'right' as const }}>
-                          {Array.isArray(value)
-                            ? (value as unknown[]).join(', ')
-                            : typeof value === 'object' && value !== null
-                              ? JSON.stringify(value)
-                              : String(value ?? '—')}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* CTA */}
               <button

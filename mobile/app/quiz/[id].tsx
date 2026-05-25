@@ -3,10 +3,10 @@ import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, ActivityIn
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getCaseById, getQuizzesByCase, getQuizProgress, saveSessionStats, submitReport } from '../../lib/queries'
+import { getCaseById, getQuizzesByCase, getQuizProgress, saveQuizAnswer, saveSessionStats, submitReport } from '../../lib/queries'
 import { supabase } from '../../lib/supabase'
 import type { Case, Quiz, QuizAnswer, UserProgress, ReportReason } from '../../lib/types'
-import { shuffleOptions, getQuizField, getDistractors, computeXp, computeResultMessage, getQuizCooldown, formatCountdown } from '../../lib/quiz-utils'
+import { shuffleOptions, getQuizField, getDistractors, computeXp, computeResultMessage, computeNextReview, getQuizCooldown, formatCountdown } from '../../lib/quiz-utils'
 import { resolveImageUrl } from '../../lib/image-utils'
 import { colors } from '../../constants/colors'
 
@@ -128,8 +128,8 @@ export default function QuizQuestionScreen() {
     setRevealed(true)
   }
 
-  function handleNext() {
-    if (!currentQuiz || !selected) return
+  async function handleNext() {
+    if (!currentQuiz || !selected || !caseData) return
 
     const correctAnswer = getQuizField(currentQuiz, 'correct', 'fr')
     const isCorrect = selected === correctAnswer
@@ -143,6 +143,39 @@ export default function QuizQuestionScreen() {
       given_answer: selected,
       is_correct: isCorrect,
       time_ms: timeMs,
+    }
+
+    // Save answer to user_progress (SRS + cooldown)
+    const uid = (await supabase.auth.getUser()).data.user?.id
+    if (uid) {
+      const prev = progressMap.get(currentQuiz.id)
+      const srs = computeNextReview(isCorrect, prev?.ease_factor ?? 2.5, prev?.interval_days ?? 1)
+      saveQuizAnswer(uid, {
+        case_id: caseData.id,
+        quiz_id: currentQuiz.id,
+        answered_correctly: isCorrect,
+        answer_given: selected,
+        time_ms: timeMs,
+        next_review_at: srs.nextReviewAt,
+        ease_factor: srs.easeFactor,
+        interval_days: srs.intervalDays,
+      }).then(() => {
+        // Refresh progress so cooldown updates immediately
+        setProgressMap(prev => {
+          const next = new Map(prev)
+          next.set(currentQuiz.id, {
+            ...(prev.get(currentQuiz.id) ?? { user_id: uid, quiz_id: currentQuiz.id, case_id: caseData.id }),
+            answered_correctly: isCorrect,
+            answer_given: selected,
+            time_ms: timeMs,
+            next_review_at: srs.nextReviewAt,
+            ease_factor: srs.easeFactor,
+            interval_days: srs.intervalDays,
+            updated_at: new Date().toISOString(),
+          } as any)
+          return next
+        })
+      }).catch(() => {})
     }
 
     const newAnswers = [...answers, answer]
@@ -364,9 +397,7 @@ export default function QuizQuestionScreen() {
             <Text style={styles.cooldownEmoji}>⏳</Text>
             <Text style={styles.cooldownTitle}>Question bloquée</Text>
             <Text style={styles.cooldownText}>
-              Vous avez répondu incorrectement à cette question.{'
-'}
-              Attendez 24 heures pour réessayer.
+              {`Vous avez répondu incorrectement à cette question.\nAttendez 24 heures pour réessayer.`}
             </Text>
             <View style={styles.cooldownTimerBox}>
               <Text style={styles.cooldownTimer}>{formatCountdown(cooldownMs)}</Text>
@@ -974,5 +1005,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '900' as any,
     color: 'white',
+  },
+  toggleRow: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    marginBottom: 10,
+  },
+  toggleBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: '#f4f4f5',
+  },
+  toggleBtnActive: {
+    backgroundColor: colors.primary,
+  },
+  toggleText: {
+    fontSize: 12,
+    fontWeight: '700' as any,
+    color: '#71717a',
+  },
+  toggleTextActive: {
+    color: 'white',
+  },
+  retryText: {
+    color: 'white',
+    fontWeight: '700' as any,
+    fontSize: 14,
   },
 })
