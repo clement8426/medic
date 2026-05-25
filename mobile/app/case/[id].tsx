@@ -124,6 +124,32 @@ export default function CaseScreen() {
             </View>
           </View>
 
+          {/* Présentation clinique */}
+          {caseData.report_fr && (
+            <View style={styles.card}>
+              <Text style={styles.sectionLabel}>Présentation clinique</Text>
+              <Text style={styles.reportText}>{caseData.report_fr}</Text>
+            </View>
+          )}
+
+          {/* Données cliniques */}
+          {(() => {
+            const HIDDEN = new Set(['report', 'report_fr', 'report_de', 'report_en', 'report_it'])
+            const entries = Object.entries(caseData.data_fr ?? {}).filter(([k]) => !HIDDEN.has(k))
+            if (entries.length === 0) return null
+            return (
+              <View style={styles.card}>
+                <Text style={styles.sectionLabel}>Données cliniques</Text>
+                {entries.map(([key, val], i) => (
+                  <View key={key} style={[styles.dataRow, i > 0 && styles.dataRowBorder]}>
+                    <Text style={styles.dataKey}>{key}</Text>
+                    <Text style={styles.dataVal}>{String(val)}</Text>
+                  </View>
+                ))}
+              </View>
+            )
+          })()}
+
           {/* Tags */}
           {caseData.tags && caseData.tags.length > 0 && (
             <View style={styles.tagsRow}>
@@ -264,6 +290,32 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.text,
     lineHeight: 24,
+    fontStyle: 'italic',
+  },
+  dataRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 8,
+    gap: 12,
+  },
+  dataRowBorder: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  dataKey: {
+    fontSize: 13,
+    color: colors.textMuted,
+    fontWeight: '600' as any,
+    flex: 1,
+    textTransform: 'capitalize',
+  },
+  dataVal: {
+    fontSize: 13,
+    color: colors.text,
+    fontWeight: '700' as any,
+    flex: 2,
+    textAlign: 'right',
   },
   tagsRow: {
     flexDirection: 'row',
