@@ -57,6 +57,19 @@ export async function getModuleQuizzes(moduleId: string): Promise<ModuleQuiz[]> 
   return data ?? []
 }
 
+export async function getModuleQuizCounts(moduleIds: string[]): Promise<Record<string, number>> {
+  if (moduleIds.length === 0) return {}
+  const { data } = await supabase
+    .from('module_quizzes')
+    .select('module_id')
+    .in('module_id', moduleIds)
+  const counts: Record<string, number> = {}
+  for (const row of data ?? []) {
+    if (row.module_id) counts[row.module_id] = (counts[row.module_id] ?? 0) + 1
+  }
+  return counts
+}
+
 // ── Quizzes ───────────────────────────────────────────────────────────────────
 
 export async function getQuizzesByCase(caseId: string): Promise<Quiz[]> {

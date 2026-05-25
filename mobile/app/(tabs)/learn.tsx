@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'
-import { getActiveModules, getCaseCountsByModule, getUserAllModuleStats } from '../../lib/queries'
+import { getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAllModuleStats } from '../../lib/queries'
 import { ModuleIcon } from '../../components/ModuleIcon'
 import { Flame, Star, BookOpen as BookOpenIcon } from 'lucide-react-native'
 import type { Module, UserModuleStats } from '../../lib/types'
@@ -13,6 +13,7 @@ export default function LearnScreen() {
   const router = useRouter()
   const [modules, setModules] = useState<Module[]>([])
   const [caseCounts, setCaseCounts] = useState<Record<string, number>>({})
+  const [quizCounts, setQuizCounts] = useState<Record<string, number>>({})
   const [moduleStats, setModuleStats] = useState<Record<string, UserModuleStats>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,8 +44,13 @@ export default function LearnScreen() {
     try {
       const data = await getActiveModules()
       setModules(data)
-      const counts = await getCaseCountsByModule(data.map(m => m.id))
+      const classicIds = data.filter(m => m.category === 'classic').map(m => m.id)
+      const [counts, qCounts] = await Promise.all([
+        getCaseCountsByModule(data.map(m => m.id)),
+        getModuleQuizCounts(classicIds),
+      ])
       setCaseCounts(counts)
+      setQuizCounts(qCounts)
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -124,7 +130,8 @@ export default function LearnScreen() {
                   {sectionMods.map(module => {
                     const count = caseCounts[module.id] ?? 0
                     const isClassic = module.category === 'classic'
-                    const comingSoon = !isClassic && count === 0
+                    const hasContent = isClassic ? (quizCounts[module.id] ?? 0) > 0 : count > 0
+                    const comingSoon = !hasContent
 
                     function handlePress() {
                       if (comingSoon) return
@@ -183,7 +190,7 @@ export default function LearnScreen() {
                                 }]} />
                               </View>
                             )}
-                            {isClassic && (
+                            {isClassic && !comingSoon && (
                               <Text style={styles.classicCta}>Réviser →</Text>
                             )}
                           </View>

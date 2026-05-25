@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import { getActiveModules, getCaseCountsByModule, getUserAllModuleStats } from '@/lib/queries'
+import { getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAllModuleStats } from '@/lib/queries'
 import { ModuleIcon } from '@/components/ui/ModuleIcon'
 import { Flame, Star, Target } from 'lucide-react'
 import type { Module, UserModuleStats } from '@/lib/types'
@@ -12,6 +12,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [modules, setModules] = useState<Module[]>([])
   const [caseCounts, setCaseCounts] = useState<Record<string, number>>({})
+  const [quizCounts, setQuizCounts] = useState<Record<string, number>>({})
   const [moduleStats, setModuleStats] = useState<Record<string, UserModuleStats>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -26,12 +27,15 @@ export default function DashboardPage() {
         const email = userData?.user?.email ?? ''
         if (email) setUserInitials(email.slice(0, 2).toUpperCase())
 
-        const [mods, counts] = await Promise.all([
-          getActiveModules(),
-          getActiveModules().then(m => getCaseCountsByModule(m.map(x => x.id))),
+        const mods = await getActiveModules()
+        const classicIds = mods.filter(m => m.category === 'classic').map(m => m.id)
+        const [counts, qCounts] = await Promise.all([
+          getCaseCountsByModule(mods.map(x => x.id)),
+          getModuleQuizCounts(classicIds),
         ])
         setModules(mods)
         setCaseCounts(counts)
+        setQuizCounts(qCounts)
 
         if (userData?.user?.id) {
           const stats = await getUserAllModuleStats(userData.user.id)
@@ -186,7 +190,8 @@ export default function DashboardPage() {
                   {sectionMods.map(mod => {
                     const count = caseCounts[mod.id] ?? 0
                     const isClassic = mod.category === 'classic'
-                    const comingSoon = !isClassic && count === 0
+                    const hasQuestions = isClassic ? (quizCounts[mod.id] ?? 0) > 0 : count > 0
+                    const comingSoon = !hasQuestions
                     const completed = moduleStats[mod.id]?.cases_completed ?? 0
                     const progress = count > 0 ? Math.min(100, Math.round((completed / count) * 100)) : 0
 
@@ -283,7 +288,7 @@ export default function DashboardPage() {
                         )}
 
                         {/* Classic CTA */}
-                        {isClassic && (
+                        {isClassic && !comingSoon && (
                           <div style={{
                             fontSize: 11, fontWeight: 700, color: '#0891b2',
                             textTransform: 'uppercase' as const, letterSpacing: '0.08em',
