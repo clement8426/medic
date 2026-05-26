@@ -50,6 +50,7 @@ export default function ProfileScreen() {
   const [editGender, setEditGender]           = useState<'homme' | 'femme' | 'autre' | null>(null)
   const [editInstitution, setEditInstitution] = useState('')
   const [editAnonymous, setEditAnonymous]     = useState(false)
+  const [editShowEmail, setEditShowEmail]     = useState(true)
   const [saving, setSaving]                   = useState(false)
 
   useEffect(() => {
@@ -121,6 +122,7 @@ export default function ProfileScreen() {
     setEditGender(profile?.gender ?? null)
     setEditInstitution(profile?.institution ?? '')
     setEditAnonymous(profile?.is_anonymous ?? false)
+    setEditShowEmail(profile?.show_email ?? true)
     setEditing(true)
   }
 
@@ -134,6 +136,7 @@ export default function ProfileScreen() {
         gender: editGender,
         institution: editInstitution.trim() || null,
         is_anonymous: editAnonymous,
+        show_email: editShowEmail,
       })
       const updated = await getProfile(userId)
       setProfile(updated)
@@ -328,7 +331,20 @@ export default function ProfileScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.toggleLabel}>Mode anonyme</Text>
-                <Text style={s.toggleSub}>Seul le pseudo est visible</Text>
+                <Text style={s.toggleSub}>Seul le pseudo est visible dans le classement</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[s.toggleRow, { marginTop: 10 }, editShowEmail && s.toggleRowActive]}
+              onPress={() => setEditShowEmail(!editShowEmail)}
+            >
+              <View style={[s.checkbox, editShowEmail && s.checkboxActive]}>
+                {editShowEmail && <Text style={s.checkmark}>✓</Text>}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.toggleLabel}>Afficher mon email</Text>
+                <Text style={s.toggleSub}>Visible par tes amis uniquement</Text>
               </View>
             </TouchableOpacity>
 
