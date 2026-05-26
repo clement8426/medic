@@ -287,15 +287,27 @@ export default function DashboardPage() {
                           </div>
                         )}
 
-                        {/* Classic CTA */}
-                        {isClassic && !comingSoon && (
-                          <div style={{
-                            fontSize: 11, fontWeight: 700, color: '#0891b2',
-                            textTransform: 'uppercase' as const, letterSpacing: '0.08em',
-                          }}>
-                            Réviser →
-                          </div>
-                        )}
+                        {/* Classic progress */}
+                        {isClassic && !comingSoon && (() => {
+                          const qTotal = quizCounts[mod.id] ?? 0
+                          const qAnswered = moduleStats[mod.id]?.total_quizzes_answered ?? 0
+                          const pct = qTotal > 0 ? Math.min(100, Math.round((qAnswered / qTotal) * 100)) : 0
+                          return (
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
+                                  Progression
+                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 900, color: '#0891b2' }}>
+                                  {qAnswered} / {qTotal}
+                                </span>
+                              </div>
+                              <div style={{ height: 6, background: '#f4f4f5', borderRadius: 99 }}>
+                                <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(135deg,#0891b2,#6366f1)', borderRadius: 99, transition: 'width 0.4s' }} />
+                              </div>
+                            </div>
+                          )
+                        })()}
                       </div>
                     )
                   })}

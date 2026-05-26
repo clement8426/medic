@@ -239,6 +239,65 @@ export async function saveSessionStats(
   }
 }
 
+export async function saveClassicQuizSession(
+  userId: string,
+  moduleId: string,
+  total: number,
+  correct: number
+): Promise<void> {
+  const xpGained = correct * 2
+  const now = new Date()
+  const todayStr = now.toDateString()
+  const yesterdayStr = new Date(now.getTime() - 86400000).toDateString()
+  const nowStr = now.toISOString()
+
+  const { data: latestActivity } = await supabase
+    .from('user_module_stats')
+    .select('last_activity_at, current_streak')
+    .eq('user_id', userId)
+    .not('last_activity_at', 'is', null)
+    .order('last_activity_at', { ascending: false })
+    .limit(1)
+
+  const lastDay = latestActivity?.[0]?.last_activity_at
+    ? new Date(latestActivity[0].last_activity_at).toDateString() : null
+  const prevStreak = latestActivity?.[0]?.current_streak ?? 0
+  const newStreak = lastDay === todayStr ? prevStreak : lastDay === yesterdayStr ? prevStreak + 1 : 1
+
+  const { data: existing } = await supabase
+    .from('user_module_stats').select('*')
+    .eq('user_id', userId).eq('module_id', moduleId).single()
+
+  if (existing) {
+    const newTotal = (existing.total_quizzes_answered ?? 0) + total
+    const prevCorrect = Math.round((existing.correct_rate ?? 0) * (existing.total_quizzes_answered ?? 0))
+    const newRate = newTotal > 0 ? (prevCorrect + correct) / newTotal : 0
+    const newXp = (existing.xp ?? 0) + xpGained
+    await supabase.from('user_module_stats').update({
+      total_quizzes_answered: newTotal,
+      correct_rate: newRate,
+      xp: newXp,
+      level: Math.floor(newXp / 100) + 1,
+      current_streak: newStreak,
+      longest_streak: Math.max(existing.longest_streak ?? 0, newStreak),
+      last_activity_at: nowStr,
+    }).eq('user_id', userId).eq('module_id', moduleId)
+  } else {
+    await supabase.from('user_module_stats').insert({
+      user_id: userId,
+      module_id: moduleId,
+      cases_completed: 0,
+      total_quizzes_answered: total,
+      correct_rate: total > 0 ? correct / total : 0,
+      xp: xpGained,
+      level: 1,
+      current_streak: newStreak,
+      longest_streak: newStreak,
+      last_activity_at: nowStr,
+    })
+  }
+}
+
 export async function getUserAllModuleStats(userId: string): Promise<UserModuleStats[]> {
   const { data } = await supabase
     .from('user_module_stats')

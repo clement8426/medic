@@ -3,7 +3,7 @@ import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import { getModuleBySlug, getModuleQuizzes } from '@/lib/queries'
+import { getModuleBySlug, getModuleQuizzes, saveClassicQuizSession } from '@/lib/queries'
 import { ModuleIcon } from '@/components/ui/ModuleIcon'
 import type { Module, ModuleQuiz } from '@/lib/types'
 
@@ -22,25 +22,29 @@ export default function ClassicQuizPage({ params }: { params: Promise<{ slug: st
   const [score, setScore] = useState(0)
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState('')
+  const [modId, setModId] = useState('')
   const [userInitials, setUserInitials] = useState('?')
   const [userXp] = useState(0)
   const [userStreak] = useState(0)
 
   useEffect(() => {
     async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+        if (user.email) setUserInitials(user.email.slice(0, 2).toUpperCase())
+      }
       const m = await getModuleBySlug(slug)
       if (!m) { setLoading(false); return }
       setMod(m)
+      setModId(m.id)
       const qs = await getModuleQuizzes(m.id)
       setQuestions(qs)
       setShuffled(qs.map(q => shuffleAnswers(q)))
       setLoading(false)
     }
     load()
-    supabase.auth.getUser().then(({ data }) => {
-      const email = data?.user?.email ?? ''
-      if (email) setUserInitials(email.slice(0, 2).toUpperCase())
-    })
   }, [slug])
 
   function shuffleAnswers(q: ModuleQuiz): string[] {
@@ -68,9 +72,13 @@ export default function ClassicQuizPage({ params }: { params: Promise<{ slug: st
     if (selected === current?.correct_fr) setScore(s => s + 1)
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (idx >= questions.length - 1) {
       setDone(true)
+      if (userId && modId) {
+        const finalScore = selected === current?.correct_fr ? score + 1 : score
+        await saveClassicQuizSession(userId, modId, questions.length, finalScore)
+      }
     } else {
       setIdx(i => i + 1)
       setSelected(null)

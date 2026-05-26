@@ -190,9 +190,22 @@ export default function LearnScreen() {
                                 }]} />
                               </View>
                             )}
-                            {isClassic && !comingSoon && (
-                              <Text style={styles.classicCta}>Réviser →</Text>
-                            )}
+                            {isClassic && !comingSoon && (() => {
+                              const qTotal = quizCounts[module.id] ?? 0
+                              const qAnswered = moduleStats[module.id]?.total_quizzes_answered ?? 0
+                              const pct = qTotal > 0 ? Math.min(100, Math.round((qAnswered / qTotal) * 100)) : 0
+                              return (
+                                <View>
+                                  <View style={styles.progressLabels}>
+                                    <Text style={styles.progressLabelLeft}>Progression</Text>
+                                    <Text style={styles.progressLabelRight}>{qAnswered} / {qTotal}</Text>
+                                  </View>
+                                  <View style={styles.progressBarBg}>
+                                    <View style={[styles.progressBarFillClassic, { width: `${pct}%` as any }]} />
+                                  </View>
+                                </View>
+                              )
+                            })()}
                           </View>
                         </View>
                       </TouchableOpacity>
@@ -423,10 +436,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700' as any,
   },
-  classicCta: {
-    fontSize: 12,
+  progressLabels: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 4,
+  },
+  progressLabelLeft: {
+    fontSize: 10,
     fontWeight: '700' as any,
+    color: '#94a3b8',
+    textTransform: 'uppercase' as any,
+    letterSpacing: 0.5,
+  },
+  progressLabelRight: {
+    fontSize: 10,
+    fontWeight: '900' as any,
     color: '#0891b2',
-    marginTop: 6,
+  },
+  progressBarFillClassic: {
+    height: 5,
+    backgroundColor: '#0891b2',
+    borderRadius: 4,
   },
 })

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import { getModuleQuizzes } from '../../../lib/queries'
+import { getModuleQuizzes, saveClassicQuizSession } from '../../../lib/queries'
 import { supabase } from '../../../lib/supabase'
 import type { Module, ModuleQuiz } from '../../../lib/types'
 import { colors } from '../../../constants/colors'
@@ -22,10 +22,13 @@ export default function ClassicQuizScreen() {
   const [score, setScore] = useState(0)
   const [done, setDone] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [userId, setUserId] = useState('')
 
   useEffect(() => {
     if (!moduleId) return
     async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) setUserId(user.id)
       const { data: modData } = await supabase
         .from('modules')
         .select('*')
@@ -65,9 +68,13 @@ export default function ClassicQuizScreen() {
     if (selected === current?.correct_fr) setScore(s => s + 1)
   }
 
-  function handleNext() {
+  async function handleNext() {
     if (idx >= questions.length - 1) {
+      const finalScore = selected === current?.correct_fr ? score + 1 : score
       setDone(true)
+      if (userId && moduleId) {
+        await saveClassicQuizSession(userId, moduleId as string, questions.length, finalScore)
+      }
     } else {
       setIdx(i => i + 1)
       setSelected(null)
