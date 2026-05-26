@@ -73,12 +73,12 @@ export default function ClassicQuizPage({ params }: { params: Promise<{ slug: st
   }
 
   async function handleNext() {
+    const isCorrect = selected === current?.correct_fr
+    if (userId && modId) {
+      await saveClassicQuizSession(userId, modId, 1, isCorrect ? 1 : 0)
+    }
     if (idx >= questions.length - 1) {
       setDone(true)
-      if (userId && modId) {
-        const finalScore = selected === current?.correct_fr ? score + 1 : score
-        await saveClassicQuizSession(userId, modId, questions.length, finalScore)
-      }
     } else {
       setIdx(i => i + 1)
       setSelected(null)

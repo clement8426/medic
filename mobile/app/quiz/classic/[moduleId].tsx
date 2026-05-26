@@ -69,12 +69,12 @@ export default function ClassicQuizScreen() {
   }
 
   async function handleNext() {
+    const isCorrect = selected === current?.correct_fr
+    if (userId && moduleId) {
+      await saveClassicQuizSession(userId, moduleId as string, 1, isCorrect ? 1 : 0)
+    }
     if (idx >= questions.length - 1) {
-      const finalScore = selected === current?.correct_fr ? score + 1 : score
       setDone(true)
-      if (userId && moduleId) {
-        await saveClassicQuizSession(userId, moduleId as string, questions.length, finalScore)
-      }
     } else {
       setIdx(i => i + 1)
       setSelected(null)
