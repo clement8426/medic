@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import { getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAllModuleStats } from '@/lib/queries'
+import { getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAllModuleStats, getModuleQuizMasteredCounts } from '@/lib/queries'
 import { ModuleIcon } from '@/components/ui/ModuleIcon'
 import { Flame, Star, Target } from 'lucide-react'
 import type { Module, UserModuleStats } from '@/lib/types'
@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [caseCounts, setCaseCounts] = useState<Record<string, number>>({})
   const [quizCounts, setQuizCounts] = useState<Record<string, number>>({})
   const [moduleStats, setModuleStats] = useState<Record<string, UserModuleStats>>({})
+  const [masteredCounts, setMasteredCounts] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userInitials, setUserInitials] = useState('?')
@@ -29,16 +30,19 @@ export default function DashboardPage() {
 
         const mods = await getActiveModules()
         const classicIds = mods.filter(m => m.category === 'classic').map(m => m.id)
-        const [counts, qCounts] = await Promise.all([
+        const userId = userData?.user?.id
+        const [counts, qCounts, mastered] = await Promise.all([
           getCaseCountsByModule(mods.map(x => x.id)),
           getModuleQuizCounts(classicIds),
+          userId && classicIds.length > 0 ? getModuleQuizMasteredCounts(userId, classicIds) : Promise.resolve({}),
         ])
         setModules(mods)
         setCaseCounts(counts)
         setQuizCounts(qCounts)
+        setMasteredCounts(mastered)
 
-        if (userData?.user?.id) {
-          const stats = await getUserAllModuleStats(userData.user.id)
+        if (userId) {
+          const stats = await getUserAllModuleStats(userId)
           const statsMap: Record<string, UserModuleStats> = {}
           for (const s of stats) statsMap[s.module_id] = s
           setModuleStats(statsMap)
@@ -290,16 +294,16 @@ export default function DashboardPage() {
                         {/* Classic progress */}
                         {isClassic && !comingSoon && (() => {
                           const qTotal = quizCounts[mod.id] ?? 0
-                          const qAnswered = moduleStats[mod.id]?.total_quizzes_answered ?? 0
-                          const pct = qTotal > 0 ? Math.min(100, Math.round((qAnswered / qTotal) * 100)) : 0
+                          const qMastered = masteredCounts[mod.id] ?? 0
+                          const pct = qTotal > 0 ? Math.min(100, Math.round((qMastered / qTotal) * 100)) : 0
                           return (
                             <div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
-                                  Progression
+                                  Maîtrisées
                                 </span>
                                 <span style={{ fontSize: 11, fontWeight: 900, color: '#0891b2' }}>
-                                  {qAnswered} / {qTotal}
+                                  {qMastered} / {qTotal}
                                 </span>
                               </div>
                               <div style={{ height: 6, background: '#f4f4f5', borderRadius: 99 }}>

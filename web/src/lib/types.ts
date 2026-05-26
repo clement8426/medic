@@ -112,6 +112,19 @@ export interface UserProgress {
   updated_at: string
 }
 
+export interface ModuleQuizProgress {
+  id: string
+  user_id: string
+  module_id: string
+  quiz_id: string
+  answered_correctly: boolean
+  ease_factor: number
+  interval_days: number
+  next_review_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface UserModuleStats {
   id: string
   user_id: string

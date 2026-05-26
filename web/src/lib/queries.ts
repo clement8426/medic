@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { Module, Case, Quiz, ModuleQuiz, UserProgress, UserModuleStats, UserSearchResult, FriendWithStats, AdminReport, ReportReason, AdminFeedback, FeedbackType, Profile } from './types'
+import type { Module, Case, Quiz, ModuleQuiz, ModuleQuizProgress, UserProgress, UserModuleStats, UserSearchResult, FriendWithStats, AdminReport, ReportReason, AdminFeedback, FeedbackType, Profile } from './types'
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
 
@@ -78,6 +78,62 @@ export async function getModuleQuizCounts(moduleIds: string[]): Promise<Record<s
   const { data } = await supabase
     .from('module_quizzes')
     .select('module_id')
+    .in('module_id', moduleIds)
+  const counts: Record<string, number> = {}
+  for (const row of data ?? []) {
+    if (row.module_id) counts[row.module_id] = (counts[row.module_id] ?? 0) + 1
+  }
+  return counts
+}
+
+// ── Module Quiz Progress (SRS classic) ───────────────────────────────────────
+
+export async function getModuleQuizProgress(
+  userId: string,
+  moduleId: string
+): Promise<ModuleQuizProgress[]> {
+  const { data } = await supabase
+    .from('user_module_quiz_progress')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('module_id', moduleId)
+  return data ?? []
+}
+
+export async function saveModuleQuizAnswer(
+  userId: string,
+  moduleId: string,
+  quizId: string,
+  isCorrect: boolean,
+  easeFactor: number,
+  intervalDays: number,
+  nextReviewAt: string
+): Promise<void> {
+  await supabase.from('user_module_quiz_progress').upsert(
+    {
+      user_id: userId,
+      module_id: moduleId,
+      quiz_id: quizId,
+      answered_correctly: isCorrect,
+      ease_factor: easeFactor,
+      interval_days: intervalDays,
+      next_review_at: nextReviewAt,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,quiz_id' }
+  )
+}
+
+export async function getModuleQuizMasteredCounts(
+  userId: string,
+  moduleIds: string[]
+): Promise<Record<string, number>> {
+  if (moduleIds.length === 0) return {}
+  const { data } = await supabase
+    .from('user_module_quiz_progress')
+    .select('module_id')
+    .eq('user_id', userId)
+    .eq('answered_correctly', true)
     .in('module_id', moduleIds)
   const counts: Record<string, number> = {}
   for (const row of data ?? []) {

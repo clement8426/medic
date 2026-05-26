@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { supabase } from '../../lib/supabase'
-import { getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAllModuleStats } from '../../lib/queries'
+import { getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAllModuleStats, getModuleQuizMasteredCounts } from '../../lib/queries'
 import { ModuleIcon } from '../../components/ModuleIcon'
 import { Flame, Star, BookOpen as BookOpenIcon } from 'lucide-react-native'
 import type { Module, UserModuleStats } from '../../lib/types'
@@ -14,6 +14,7 @@ export default function LearnScreen() {
   const [modules, setModules] = useState<Module[]>([])
   const [caseCounts, setCaseCounts] = useState<Record<string, number>>({})
   const [quizCounts, setQuizCounts] = useState<Record<string, number>>({})
+  const [masteredCounts, setMasteredCounts] = useState<Record<string, number>>({})
   const [moduleStats, setModuleStats] = useState<Record<string, UserModuleStats>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -23,11 +24,13 @@ export default function LearnScreen() {
   const [totalCases, setTotalCases] = useState(0)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    async function init() {
+      const { data } = await supabase.auth.getUser()
       setUserEmail(data.user?.email ?? '')
+      await loadModules(data.user?.id ?? null)
       if (data.user?.id) loadStats(data.user.id)
-    })
-    loadModules()
+    }
+    init()
   }, [])
 
   async function loadStats(userId: string) {
@@ -40,17 +43,19 @@ export default function LearnScreen() {
     setTotalCases(stats.reduce((acc, s) => acc + (s.cases_completed ?? 0), 0))
   }
 
-  async function loadModules() {
+  async function loadModules(userId: string | null) {
     try {
       const data = await getActiveModules()
       setModules(data)
       const classicIds = data.filter(m => m.category === 'classic').map(m => m.id)
-      const [counts, qCounts] = await Promise.all([
+      const [counts, qCounts, mastered] = await Promise.all([
         getCaseCountsByModule(data.map(m => m.id)),
         getModuleQuizCounts(classicIds),
+        userId && classicIds.length > 0 ? getModuleQuizMasteredCounts(userId, classicIds) : Promise.resolve({}),
       ])
       setCaseCounts(counts)
       setQuizCounts(qCounts)
+      setMasteredCounts(mastered)
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -192,13 +197,13 @@ export default function LearnScreen() {
                             )}
                             {isClassic && !comingSoon && (() => {
                               const qTotal = quizCounts[module.id] ?? 0
-                              const qAnswered = moduleStats[module.id]?.total_quizzes_answered ?? 0
-                              const pct = qTotal > 0 ? Math.min(100, Math.round((qAnswered / qTotal) * 100)) : 0
+                              const qMastered = masteredCounts[module.id] ?? 0
+                              const pct = qTotal > 0 ? Math.min(100, Math.round((qMastered / qTotal) * 100)) : 0
                               return (
                                 <View>
                                   <View style={styles.progressLabels}>
-                                    <Text style={styles.progressLabelLeft}>Progression</Text>
-                                    <Text style={styles.progressLabelRight}>{qAnswered} / {qTotal}</Text>
+                                    <Text style={styles.progressLabelLeft}>Maîtrisées</Text>
+                                    <Text style={styles.progressLabelRight}>{qMastered} / {qTotal}</Text>
                                   </View>
                                   <View style={styles.progressBarBg}>
                                     <View style={[styles.progressBarFillClassic, { width: `${pct}%` as any }]} />
