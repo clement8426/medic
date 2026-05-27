@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Image, StyleSheet, ActivityIndicator, Platform, Modal } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { View, Text, TouchableOpacity, Pressable, ScrollView, Image, StyleSheet, ActivityIndicator, Platform, Modal } from 'react-native'
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getCaseById, getQuizzesByCase, getQuizProgress, saveQuizAnswer, saveSessionStats, submitReport } from '../../lib/queries'
@@ -8,6 +8,7 @@ import { supabase } from '../../lib/supabase'
 import type { Case, Quiz, QuizAnswer, UserProgress, ReportReason } from '../../lib/types'
 import { shuffleOptions, getQuizField, getDistractors, computeXp, computeResultMessage, computeNextReview, getQuizCooldown, formatCountdown } from '../../lib/quiz-utils'
 import { resolveImageUrl } from '../../lib/image-utils'
+import { X, ZoomIn } from 'lucide-react-native'
 import { colors } from '../../constants/colors'
 
 type OptionState = 'idle' | 'selected' | 'correct' | 'wrong'
@@ -34,6 +35,7 @@ export default function QuizQuestionScreen() {
   const [reportReason, setReportReason] = useState<ReportReason | null>(null)
   const [reportDone, setReportDone] = useState(false)
   const [reportSubmitting, setReportSubmitting] = useState(false)
+  const { bottom: bottomInset } = useSafeAreaInsets()
 
   // Shuffled options for each step — computed once per quiz load
   const [shuffledOptions, setShuffledOptions] = useState<string[][]>([])
@@ -284,9 +286,12 @@ export default function QuizQuestionScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <Text style={styles.closeText}>✕</Text>
-        </TouchableOpacity>
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.closeButton}
+        >
+          <X size={22} color="white" strokeWidth={2.5} />
+        </Pressable>
 
         <View style={styles.progressSegments}>
           {quizzes.map((_, i) => (
@@ -339,6 +344,13 @@ export default function QuizQuestionScreen() {
               style={styles.smallImage}
               resizeMode="contain"
             />
+            <TouchableOpacity
+              style={styles.fullscreenBadge}
+              onPress={() => router.push(`/image/${caseData.id}`)}
+            >
+              <ZoomIn size={14} color="white" strokeWidth={2} />
+              <Text style={styles.fullscreenText}>Plein écran</Text>
+            </TouchableOpacity>
           </View>
         ) : null}
 
@@ -522,7 +534,7 @@ export default function QuizQuestionScreen() {
 
       {/* CTA Button */}
       {cooldownMs === 0 && (
-        <View style={styles.ctaContainer}>
+        <View style={[styles.ctaContainer, { paddingBottom: (Platform.OS === 'ios' ? 28 : 16) + bottomInset }]}>
           {!revealed ? (
             <TouchableOpacity
               style={[styles.ctaButton, !selected && styles.ctaButtonDisabled]}
@@ -592,12 +604,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   closeButton: {
-    padding: 4,
-  },
-  closeText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '700' as any,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   progressSegments: {
     flex: 1,
@@ -653,6 +663,23 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 150,
     backgroundColor: 'black',
+  },
+  fullscreenBadge: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  fullscreenText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '700' as any,
   },
   patientCard: {
     flexDirection: 'row',

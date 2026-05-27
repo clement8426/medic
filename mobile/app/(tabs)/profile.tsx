@@ -3,22 +3,24 @@ import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
   Alert, Image, Modal, TextInput, Platform, ActivityIndicator,
 } from 'react-native'
-import { Star, Flame, Target, Users, MessageSquare, Pencil, Camera } from 'lucide-react-native'
+import { Star, Flame, Target, Users, MessageSquare, Pencil, Camera, Mail, Settings, Bell, Stethoscope, Syringe, Baby, HeartHandshake, GraduationCap, Sparkles, Building2, LogOut } from 'lucide-react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { supabase } from '../../lib/supabase'
-import { getUserAllModuleStats, getProfile, upsertProfile } from '../../lib/queries'
+import { getUserAllModuleStats, getProfile, upsertProfile, getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getModuleQuizMasteredCounts } from '../../lib/queries'
+import { ModuleIcon } from '../../components/ModuleIcon'
 import { colors } from '../../constants/colors'
-import type { Profile, ProfTitle } from '../../lib/types'
+import { useI18n } from '../../lib/i18n'
+import type { Module, Profile, ProfTitle } from '../../lib/types'
 
-const TITLES: { value: ProfTitle; label: string; emoji: string }[] = [
-  { value: 'medecin',       label: 'Médecin',         emoji: '🩺' },
-  { value: 'infirmier',     label: 'Infirmier(ère)',   emoji: '💉' },
-  { value: 'sage_femme',    label: 'Sage-femme',       emoji: '👶' },
-  { value: 'aide_soignant', label: 'Aide-soignant(e)', emoji: '🏥' },
-  { value: 'etudiant',      label: 'Étudiant(e)',      emoji: '📚' },
-  { value: 'autre',         label: 'Autre',            emoji: '✨' },
+const TITLES: { value: ProfTitle; label: string; Icon: React.ComponentType<any> }[] = [
+  { value: 'medecin',       label: 'Médecin',         Icon: Stethoscope    },
+  { value: 'infirmier',     label: 'Infirmier(ère)',   Icon: Syringe        },
+  { value: 'sage_femme',    label: 'Sage-femme',       Icon: Baby           },
+  { value: 'aide_soignant', label: 'Aide-soignant(e)', Icon: HeartHandshake },
+  { value: 'etudiant',      label: 'Étudiant(e)',      Icon: GraduationCap  },
+  { value: 'autre',         label: 'Autre',            Icon: Sparkles       },
 ]
 
 const TITLE_COLORS: Record<ProfTitle, { color: string; bg: string }> = {
@@ -32,6 +34,7 @@ const TITLE_COLORS: Record<ProfTitle, { color: string; bg: string }> = {
 
 export default function ProfileScreen() {
   const router = useRouter()
+  const { t } = useI18n()
   const [userId, setUserId]     = useState('')
   const [email, setEmail]       = useState('')
   const [profile, setProfile]   = useState<Profile | null>(null)
@@ -39,6 +42,11 @@ export default function ProfileScreen() {
   const [xp, setXp]             = useState(0)
   const [streak, setStreak]     = useState(0)
   const [accuracy, setAccuracy] = useState(0)
+  const [modules, setModules]           = useState<Module[]>([])
+  const [moduleStats, setModuleStats]   = useState<Record<string, number>>({})
+  const [caseCounts, setCaseCounts]     = useState<Record<string, number>>({})
+  const [quizCounts, setQuizCounts]     = useState<Record<string, number>>({})
+  const [masteredCounts, setMasteredCounts] = useState<Record<string, number>>({})
 
   // Avatar
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -64,16 +72,31 @@ export default function ProfileScreen() {
     setEmail(u.email ?? '')
     setUserId(u.id)
 
-    const [stats, prof] = await Promise.all([
+    const [stats, prof, mods] = await Promise.all([
       getUserAllModuleStats(u.id),
       getProfile(u.id),
+      getActiveModules(),
     ])
     setProfile(prof)
+    setModules(mods)
+    const statsMap: Record<string, number> = {}
+    for (const s of stats) statsMap[s.module_id] = s.cases_completed ?? 0
+    setModuleStats(statsMap)
     setXp(stats.reduce((acc, s) => acc + (s.xp ?? 0), 0))
     setStreak(Math.max(0, ...stats.map(s => s.current_streak ?? 0)))
     const totalQ = stats.reduce((acc, s) => acc + (s.total_quizzes_answered ?? 0), 0)
     const totalCorrect = stats.reduce((acc, s) => acc + Math.round((s.correct_rate ?? 0) * (s.total_quizzes_answered ?? 0)), 0)
     setAccuracy(totalQ > 0 ? Math.round((totalCorrect / totalQ) * 100) : 0)
+
+    const classicIds = mods.filter(m => m.category === 'classic').map(m => m.id)
+    const [counts, qCounts, mastered] = await Promise.all([
+      getCaseCountsByModule(mods.map(m => m.id)),
+      getModuleQuizCounts(classicIds),
+      classicIds.length > 0 ? getModuleQuizMasteredCounts(u.id, classicIds) : Promise.resolve({}),
+    ])
+    setCaseCounts(counts)
+    setQuizCounts(qCounts)
+    setMasteredCounts(mastered)
     setLoading(false)
   }
 
@@ -149,9 +172,9 @@ export default function ProfileScreen() {
   }
 
   async function handleSignOut() {
-    Alert.alert('Déconnexion', 'Voulez-vous vraiment vous déconnecter ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Déconnexion', style: 'destructive', onPress: async () => {
+    Alert.alert(t.signOutTitle, t.signOutConfirm, [
+      { text: t.cancel, style: 'cancel' },
+      { text: t.signOutShort, style: 'destructive', onPress: async () => {
         await supabase.auth.signOut()
         router.replace('/')
       }},
@@ -180,7 +203,7 @@ export default function ProfileScreen() {
           <View style={{ flex: 1 }} />
           <TouchableOpacity style={s.editBtn} onPress={openEdit}>
             <Pencil size={14} color={colors.primary} strokeWidth={2} />
-            <Text style={s.editBtnText}>Modifier</Text>
+            <Text style={s.editBtnText}>{t.edit}</Text>
           </TouchableOpacity>
         </View>
 
@@ -204,12 +227,16 @@ export default function ProfileScreen() {
           <View style={{ flex: 1 }}>
             <Text style={s.displayName}>{displayName}</Text>
             {titleDef && titleMeta && (
-              <View style={[s.titleBadge, { backgroundColor: titleMeta.bg }]}>
-                <Text style={[s.titleBadgeText, { color: titleMeta.color }]}>{titleDef.emoji} {titleDef.label}</Text>
+              <View style={[s.titleBadge, { backgroundColor: titleMeta.bg, flexDirection: 'row', alignItems: 'center', gap: 5 }]}>
+                <titleDef.Icon size={12} color={titleMeta.color} strokeWidth={2} />
+                <Text style={[s.titleBadgeText, { color: titleMeta.color }]}>{titleDef.label}</Text>
               </View>
             )}
             {profile?.institution && !profile.is_anonymous && (
-              <Text style={s.institutionText}>🏥 {profile.institution}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
+                <Building2 size={12} color={colors.textSecondary} strokeWidth={2} />
+                <Text style={s.institutionText}>{profile.institution}</Text>
+              </View>
             )}
             {profile?.is_anonymous && <Text style={s.anonText}>Mode anonyme</Text>}
           </View>
@@ -217,12 +244,12 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView style={s.scroll} contentContainerStyle={s.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={s.sectionLabel}>Statistiques</Text>
+        <Text style={s.sectionLabel}>{t.statistics}</Text>
         <View style={s.statsRow}>
           {[
-            { Icon: Star, color: '#f59e0b', value: xp.toLocaleString(), label: 'XP total' },
-            { Icon: Flame, color: '#f97316', value: String(streak), label: 'Streak' },
-            { Icon: Target, color: colors.primary, value: `${accuracy}%`, label: 'Précision' },
+            { Icon: Star, color: '#f59e0b', value: xp.toLocaleString(), label: t.xpTotal },
+            { Icon: Flame, color: '#f97316', value: String(streak), label: t.streak },
+            { Icon: Target, color: colors.primary, value: `${accuracy}%`, label: t.accuracy },
           ].map(stat => (
             <View key={stat.label} style={s.statCard}>
               <stat.Icon size={16} color={stat.color} strokeWidth={2} style={{ marginBottom: 4 }} />
@@ -232,37 +259,82 @@ export default function ProfileScreen() {
           ))}
         </View>
 
-        <Text style={s.sectionLabel}>Compte</Text>
+        <Text style={s.sectionLabel}>{t.moduleProgress}</Text>
+        {modules.filter(mod => (mod.category ?? 'clinical') === 'clinical' && (caseCounts[mod.id] ?? 0) > 0).map(mod => {
+          const count = caseCounts[mod.id] ?? 0
+          const completed = moduleStats[mod.id] ?? 0
+          const pct = count > 0 ? Math.min(100, Math.round((completed / count) * 100)) : 0
+          return (
+            <View key={mod.id} style={s.moduleCard}>
+              <ModuleIcon icon={mod.icon} size={18} color="#0F766E" strokeWidth={1.75} />
+              <View style={{ flex: 1 }}>
+                <Text style={s.moduleName}>{mod.name_fr}</Text>
+                <View style={s.progressBg}>
+                  <View style={[s.progressFill, { width: `${pct}%` as any }]} />
+                </View>
+              </View>
+              <Text style={s.moduleScore}>{completed} / {count}</Text>
+            </View>
+          )
+        })}
+        {modules.filter(mod => mod.category === 'classic' && (quizCounts[mod.id] ?? 0) > 0).map(mod => {
+          const qTotal = quizCounts[mod.id] ?? 0
+          const qMastered = masteredCounts[mod.id] ?? 0
+          const pct = qTotal > 0 ? Math.min(100, Math.round((qMastered / qTotal) * 100)) : 0
+          return (
+            <View key={mod.id} style={s.moduleCard}>
+              <ModuleIcon icon={mod.icon} size={18} color="#0891b2" strokeWidth={1.75} />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <Text style={s.moduleName}>{mod.name_fr}</Text>
+                  <View style={s.classicBadge}><Text style={s.classicBadgeText}>Classique</Text></View>
+                </View>
+                <View style={s.progressBg}>
+                  <View style={[s.progressFillClassic, { width: `${pct}%` as any }]} />
+                </View>
+              </View>
+              <Text style={[s.moduleScore, { color: '#0891b2' }]}>{qMastered} / {qTotal}</Text>
+            </View>
+          )
+        })}
+
+        <Text style={s.sectionLabel}>{t.account}</Text>
         <View style={s.card}>
-          <Text style={s.emailRow}>📧  {email || '—'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 }}>
+            <Mail size={18} color={colors.textMuted} strokeWidth={2} />
+            <Text style={s.emailRow}>{email || '—'}</Text>
+          </View>
         </View>
 
         <TouchableOpacity style={s.menuItem} onPress={() => router.push('/friends')}>
           <View style={s.menuIcon}><Users size={20} color={colors.primary} strokeWidth={2} /></View>
-          <Text style={s.menuText}>Amis</Text>
+          <Text style={s.menuText}>{t.friends}</Text>
           <Text style={s.chevron}>›</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={s.menuItem} onPress={() => router.push('/feedback')}>
           <View style={s.menuIcon}><MessageSquare size={20} color={colors.primary} strokeWidth={2} /></View>
-          <Text style={s.menuText}>Donner mon avis</Text>
+          <Text style={s.menuText}>{t.feedback}</Text>
           <Text style={s.chevron}>›</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={s.menuItem} onPress={() => router.push('/settings')}>
-          <Text style={s.menuEmoji}>⚙️</Text>
-          <Text style={s.menuText}>Paramètres</Text>
+          <View style={s.menuIcon}><Settings size={20} color={colors.primary} strokeWidth={2} /></View>
+          <Text style={s.menuText}>{t.settings}</Text>
           <Text style={s.chevron}>›</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={s.menuItem} onPress={() => router.push('/notifications')}>
-          <Text style={s.menuEmoji}>🔔</Text>
-          <Text style={s.menuText}>Notifications</Text>
+          <View style={s.menuIcon}><Bell size={20} color={colors.primary} strokeWidth={2} /></View>
+          <Text style={s.menuText}>{t.notifications}</Text>
           <Text style={s.chevron}>›</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={s.signOutBtn} onPress={handleSignOut}>
-          <Text style={s.signOutText}>🚪 Se déconnecter</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <LogOut size={18} color={colors.errorText} strokeWidth={2} />
+            <Text style={s.signOutText}>{t.signOut}</Text>
+          </View>
         </TouchableOpacity>
       </ScrollView>
 
@@ -293,7 +365,7 @@ export default function ProfileScreen() {
                   style={[s.titleOpt, editTitle === t.value && s.titleOptSelected]}
                   onPress={() => setEditTitle(editTitle === t.value ? null : t.value)}
                 >
-                  <Text style={s.titleOptEmoji}>{t.emoji}</Text>
+                  <t.Icon size={20} color={editTitle === t.value ? colors.primary : colors.textMuted} strokeWidth={1.75} />
                   <Text style={[s.titleOptLabel, editTitle === t.value && { color: colors.primary }]}>{t.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -387,15 +459,22 @@ const s = StyleSheet.create({
   statCard: { flex: 1, backgroundColor: 'white', borderRadius: 16, padding: 14, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   statValue: { fontWeight: '900' as any, fontSize: 20, color: colors.primary },
   statLabel: { fontSize: 11, color: colors.textMuted, marginTop: 4, fontWeight: '600' as any },
-  card: { backgroundColor: 'white', borderRadius: 16, padding: 14, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
+  card: { backgroundColor: 'white', borderRadius: 16, overflow: 'hidden', marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   emailRow: { fontSize: 15, color: colors.text },
   menuItem: { backgroundColor: 'white', borderRadius: 16, padding: 16, marginBottom: 10, flexDirection: 'row', alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3 },
   menuIcon: { width: 34, alignItems: 'center' },
-  menuEmoji: { fontSize: 20, marginRight: 14, width: 34, textAlign: 'center' },
   menuText: { flex: 1, fontSize: 16, fontWeight: '700' as any, color: colors.text },
   chevron: { fontSize: 22, color: colors.textMuted },
   signOutBtn: { backgroundColor: colors.errorBg, borderRadius: 16, padding: 16, alignItems: 'center', marginTop: 8, borderWidth: 1.5, borderColor: colors.error },
   signOutText: { color: colors.errorText, fontWeight: '700' as any, fontSize: 16 },
+  moduleCard: { backgroundColor: 'white', borderRadius: 14, padding: 12, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  moduleName: { fontWeight: '700' as any, fontSize: 13, color: colors.text, marginBottom: 4 },
+  moduleScore: { fontSize: 11, fontWeight: '900' as any, color: '#0F766E', minWidth: 36, textAlign: 'right' as any },
+  progressBg: { height: 4, backgroundColor: colors.bg, borderRadius: 4 },
+  progressFill: { height: 4, backgroundColor: colors.primary, borderRadius: 4 },
+  progressFillClassic: { height: 4, backgroundColor: '#0891b2', borderRadius: 4 },
+  classicBadge: { backgroundColor: '#f0f9ff', borderRadius: 99, paddingHorizontal: 6, paddingVertical: 1, borderWidth: 1, borderColor: '#bae6fd' },
+  classicBadgeText: { fontSize: 9, fontWeight: '700' as any, color: '#0c4a6e' },
   // Modal
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: colors.border },
   modalTitle: { fontSize: 18, fontWeight: '900' as any, color: colors.text },
@@ -406,7 +485,6 @@ const s = StyleSheet.create({
   titleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   titleOpt: { width: '47%', backgroundColor: colors.bg, borderRadius: 12, padding: 12, alignItems: 'center', borderWidth: 2, borderColor: 'transparent', flexDirection: 'row', gap: 8 },
   titleOptSelected: { backgroundColor: '#e6f4f3', borderColor: colors.primary },
-  titleOptEmoji: { fontSize: 18 },
   titleOptLabel: { fontSize: 13, fontWeight: '700' as any, color: colors.text },
   genderRow: { flexDirection: 'row', gap: 8 },
   genderOpt: { flex: 1, padding: 12, borderRadius: 10, borderWidth: 2, borderColor: colors.border, alignItems: 'center', backgroundColor: 'white' },

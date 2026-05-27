@@ -3,10 +3,12 @@ import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import { getModuleBySlug, getModuleQuizzes, getModuleQuizProgress, saveModuleQuizAnswer, saveClassicQuizSession } from '@/lib/queries'
+import { getModuleBySlug, getModuleQuizzes, getModuleQuizProgress, saveModuleQuizAnswer, saveClassicQuizSession, getUserSidebarStats } from '@/lib/queries'
 import { computeNextReview } from '@/lib/quiz-utils'
 import { ModuleIcon } from '@/components/ui/ModuleIcon'
 import type { Module, ModuleQuiz, ModuleQuizProgress } from '@/lib/types'
+import { getModuleName } from '@/lib/types'
+import { useI18n } from '@/lib/i18n'
 
 const SESSION_SIZE = 20
 const MAX_REQUEUES = 2
@@ -64,6 +66,7 @@ function buildQueue(
 export default function ClassicQuizPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
   const router = useRouter()
+  const { lang, t } = useI18n()
 
   const [mod, setMod] = useState<Module | null>(null)
   const [allQuestions, setAllQuestions] = useState<ModuleQuiz[]>([])
@@ -82,8 +85,8 @@ export default function ClassicQuizPage({ params }: { params: Promise<{ slug: st
   const [correctCount, setCorrectCount] = useState(0)
   const [done, setDone] = useState(false)
   const [progressMap, setProgressMap] = useState<Map<string, ModuleQuizProgress>>(new Map())
-  const [userXp] = useState(0)
-  const [userStreak] = useState(0)
+  const [userXp, setUserXp] = useState(0)
+  const [userStreak, setUserStreak] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -91,6 +94,7 @@ export default function ClassicQuizPage({ params }: { params: Promise<{ slug: st
       if (user) {
         setUserId(user.id)
         if (user.email) setUserInitials(user.email.slice(0, 2).toUpperCase())
+        getUserSidebarStats(user.id).then(({ xp, streak }) => { setUserXp(xp); setUserStreak(streak) })
       }
       const m = await getModuleBySlug(slug)
       if (!m) { setLoading(false); return }
@@ -220,15 +224,15 @@ export default function ClassicQuizPage({ params }: { params: Promise<{ slug: st
         {/* Topbar */}
         <div style={{ background: 'white', borderBottom: '1px solid #e4e4e7', padding: '16px 32px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
           <button onClick={() => router.push('/dashboard')} style={{ background: '#f4f4f5', border: 'none', borderRadius: 10, padding: '7px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>
-            ← Retour
+            {t.back}
           </button>
           {mod && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 32, height: 32, borderRadius: 10, background: 'linear-gradient(135deg,#0891b222,#6366f122)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <ModuleIcon icon={mod.icon} size={18} color="#0891b2" strokeWidth={1.75} />
               </div>
-              <span style={{ fontWeight: 900, fontSize: 16, color: '#09090b' }}>{mod.name_fr}</span>
-              <span style={{ background: '#f0f9ff', color: '#0c4a6e', border: '1px solid #bae6fd', borderRadius: 99, padding: '3px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Classique</span>
+              <span style={{ fontWeight: 900, fontSize: 16, color: '#09090b' }}>{getModuleName(mod, lang)}</span>
+              <span style={{ background: '#f0f9ff', color: '#0c4a6e', border: '1px solid #bae6fd', borderRadius: 99, padding: '3px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{t.classic}</span>
             </div>
           )}
         </div>

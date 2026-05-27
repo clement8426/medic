@@ -2,7 +2,9 @@ import Link from 'next/link'
 import {
   HeartPulse, Activity, Brain, Trophy, UserCheck,
   BarChart3, Globe, BookOpen, Stethoscope, ShieldCheck, Flame,
+  Syringe, Baby, HeartHandshake, GraduationCap, Sparkles,
 } from 'lucide-react'
+import type { LucideProps } from 'lucide-react'
 
 const FEATURES = [
   {
@@ -31,13 +33,13 @@ const FEATURES = [
   },
 ]
 
-const PROFILES = [
-  { emoji: '🩺', label: 'Médecin' },
-  { emoji: '💉', label: 'Infirmier(ère)' },
-  { emoji: '👶', label: 'Sage-femme' },
-  { emoji: '🏥', label: 'Aide-soignant(e)' },
-  { emoji: '📚', label: 'Étudiant(e)' },
-  { emoji: '✨', label: 'Tout professionnel de santé' },
+const PROFILES: { Icon: React.ComponentType<LucideProps>; label: string }[] = [
+  { Icon: Stethoscope,   label: 'Médecin' },
+  { Icon: Syringe,       label: 'Infirmier(ère)' },
+  { Icon: Baby,          label: 'Sage-femme' },
+  { Icon: HeartHandshake,label: 'Aide-soignant(e)' },
+  { Icon: GraduationCap, label: 'Étudiant(e)' },
+  { Icon: Sparkles,      label: 'Tout professionnel de santé' },
 ]
 
 const STATS = [
@@ -200,7 +202,7 @@ export default function LandingPage() {
                 fontWeight: 700, fontSize: 14, color: '#374151',
                 border: '1.5px solid #e4e4e7',
               }}>
-                <span style={{ fontSize: 18 }}>{p.emoji}</span>
+                <p.Icon size={16} color="#0F766E" strokeWidth={1.75} />
                 {p.label}
               </div>
             ))}

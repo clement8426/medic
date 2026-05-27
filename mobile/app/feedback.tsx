@@ -5,9 +5,9 @@ import {
 } from 'react-native'
 import { useRouter } from 'expo-router'
 import { ChevronLeft, Send, CheckCircle } from 'lucide-react-native'
-import { supabase } from '@/lib/supabase'
-import { submitFeedback } from '@/lib/queries'
-import type { FeedbackType } from '@/lib/types'
+import { supabase } from '../lib/supabase'
+import { submitFeedback } from '../lib/queries'
+import type { FeedbackType } from '../lib/types'
 
 const TYPES: { value: FeedbackType; label: string }[] = [
   { value: 'bug',        label: 'Bug'        },

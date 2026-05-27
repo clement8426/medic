@@ -2,10 +2,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import { getActiveModules, getCaseCountsByModule, getUserAllModuleStats, getProfile, upsertProfile } from '@/lib/queries'
+import { getActiveModules, getCaseCountsByModule, getUserAllModuleStats, getProfile, upsertProfile, getModuleQuizCounts, getModuleQuizMasteredCounts } from '@/lib/queries'
 import { ModuleIcon } from '@/components/ui/ModuleIcon'
 import { Star, Flame, Target, Pencil, Camera } from 'lucide-react'
 import type { Module, UserModuleStats, Profile, ProfTitle } from '@/lib/types'
+import { getModuleName } from '@/lib/types'
+import { useI18n } from '@/lib/i18n'
 
 const TITLES: { value: ProfTitle; label: string; emoji: string; color: string; bg: string }[] = [
   { value: 'medecin',       label: 'Médecin',         emoji: '🩺', color: '#166534', bg: '#f0fdf4' },
@@ -40,12 +42,15 @@ function Avatar({ url, initials, size = 72, radius = 24, fontSize = 28, border =
 }
 
 export default function ProfilePage() {
+  const { t, lang } = useI18n()
   const [email, setEmail]           = useState('')
   const [userId, setUserId]         = useState('')
   const [createdAt, setCreatedAt]   = useState('')
   const [profile, setProfile]       = useState<Profile | null>(null)
   const [modules, setModules]       = useState<Module[]>([])
   const [caseCounts, setCaseCounts] = useState<Record<string, number>>({})
+  const [quizCounts, setQuizCounts] = useState<Record<string, number>>({})
+  const [masteredCounts, setMasteredCounts] = useState<Record<string, number>>({})
   const [moduleStats, setModuleStats] = useState<Record<string, UserModuleStats>>({})
   const [loading, setLoading]       = useState(true)
   const [xp, setXp]                 = useState(0)
@@ -84,8 +89,15 @@ export default function ProfilePage() {
       ])
       setProfile(prof)
       setModules(mods)
-      const counts = await getCaseCountsByModule(mods.map(m => m.id))
+      const classicIds = mods.filter(m => m.category === 'classic').map(m => m.id)
+      const [counts, qCounts, mastered] = await Promise.all([
+        getCaseCountsByModule(mods.map(m => m.id)),
+        getModuleQuizCounts(classicIds),
+        u?.id && classicIds.length > 0 ? getModuleQuizMasteredCounts(u.id, classicIds) : Promise.resolve({}),
+      ])
       setCaseCounts(counts)
+      setQuizCounts(qCounts)
+      setMasteredCounts(mastered)
 
       const statsMap: Record<string, UserModuleStats> = {}
       for (const s of stats) statsMap[s.module_id] = s
@@ -220,12 +232,12 @@ export default function ProfilePage() {
         <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 22 }}>
           {/* Stats */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>STATISTIQUES</div>
+            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>{t.statistics}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
               {([
-                { label: 'XP Total', value: xp.toLocaleString(), Icon: Star, iconColor: '#f59e0b' },
-                { label: 'Streak', value: `${streak} j`, Icon: Flame, iconColor: '#f97316' },
-                { label: 'Précision', value: `${accuracy}%`, Icon: Target, iconColor: '#0F766E' },
+                { label: t.xpTotal, value: xp.toLocaleString(), Icon: Star, iconColor: '#f59e0b' },
+                { label: t.streak, value: `${streak} ${t.days}`, Icon: Flame, iconColor: '#f97316' },
+                { label: t.precision, value: `${accuracy}%`, Icon: Target, iconColor: '#0F766E' },
               ] as const).map(stat => (
                 <div key={stat.label} style={{ background: 'white', borderRadius: 18, border: '1px solid #e4e4e7', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', padding: '18px 20px', textAlign: 'center' }}>
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
@@ -240,26 +252,49 @@ export default function ProfilePage() {
 
           {/* Modules */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>PROGRESSION PAR MODULE</div>
+            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>{t.moduleProgressTitle}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {loading ? <div style={{ color: '#71717a', fontWeight: 700 }}>Chargement…</div>
-                : modules.filter(mod => (caseCounts[mod.id] ?? 0) > 0).map(mod => {
-                  const count = caseCounts[mod.id] ?? 0
-                  const completed = moduleStats[mod.id]?.cases_completed ?? 0
-                  const pct = count > 0 ? Math.min(100, Math.round((completed / count) * 100)) : 0
-                  return (
-                    <div key={mod.id} style={{ background: 'white', borderRadius: 16, border: '1px solid #e4e4e7', boxShadow: '0 1px 6px rgba(0,0,0,0.05)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <ModuleIcon icon={mod.icon} size={20} color="#0F766E" strokeWidth={1.75} />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 900, fontSize: 13, color: '#09090b', marginBottom: 6 }}>{mod.name_fr}</div>
-                        <div style={{ height: 5, background: '#f4f4f5', borderRadius: 99 }}>
-                          <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(135deg,#0F766E,#0891b2)', borderRadius: 99, transition: 'width 0.4s' }} />
+              {loading ? <div style={{ color: '#71717a', fontWeight: 700 }}>{t.loading}</div> : (
+                <>
+                  {modules.filter(mod => (mod.category ?? 'clinical') === 'clinical' && (caseCounts[mod.id] ?? 0) > 0).map(mod => {
+                    const count = caseCounts[mod.id] ?? 0
+                    const completed = moduleStats[mod.id]?.cases_completed ?? 0
+                    const pct = count > 0 ? Math.min(100, Math.round((completed / count) * 100)) : 0
+                    return (
+                      <div key={mod.id} style={{ background: 'white', borderRadius: 16, border: '1px solid #e4e4e7', boxShadow: '0 1px 6px rgba(0,0,0,0.05)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <ModuleIcon icon={mod.icon} size={20} color="#0F766E" strokeWidth={1.75} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 900, fontSize: 13, color: '#09090b', marginBottom: 6 }}>{getModuleName(mod, lang)}</div>
+                          <div style={{ height: 5, background: '#f4f4f5', borderRadius: 99 }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(135deg,#0F766E,#0891b2)', borderRadius: 99, transition: 'width 0.4s' }} />
+                          </div>
                         </div>
+                        <span style={{ fontSize: 11, fontWeight: 900, color: '#0F766E', minWidth: 40, textAlign: 'right' }}>{completed} / {count}</span>
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 900, color: '#0F766E', minWidth: 40, textAlign: 'right' }}>{completed} / {count}</span>
-                    </div>
-                  )
-                })}
+                    )
+                  })}
+                  {modules.filter(mod => mod.category === 'classic' && (quizCounts[mod.id] ?? 0) > 0).map(mod => {
+                    const qTotal = quizCounts[mod.id] ?? 0
+                    const qMastered = masteredCounts[mod.id] ?? 0
+                    const pct = qTotal > 0 ? Math.min(100, Math.round((qMastered / qTotal) * 100)) : 0
+                    return (
+                      <div key={mod.id} style={{ background: 'white', borderRadius: 16, border: '1px solid #e4e4e7', boxShadow: '0 1px 6px rgba(0,0,0,0.05)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                        <ModuleIcon icon={mod.icon} size={20} color="#0891b2" strokeWidth={1.75} />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <span style={{ fontWeight: 900, fontSize: 13, color: '#09090b' }}>{getModuleName(mod, lang)}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, background: '#f0f9ff', color: '#0c4a6e', border: '1px solid #bae6fd', borderRadius: 99, padding: '1px 7px' }}>{t.classic}</span>
+                          </div>
+                          <div style={{ height: 5, background: '#f4f4f5', borderRadius: 99 }}>
+                            <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(135deg,#0891b2,#6366f1)', borderRadius: 99, transition: 'width 0.4s' }} />
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 11, fontWeight: 900, color: '#0891b2', minWidth: 40, textAlign: 'right' }}>{qMastered} / {qTotal}</span>
+                      </div>
+                    )
+                  })}
+                </>
+              )}
             </div>
           </div>
         </div>

@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import type { Lang } from '@/lib/types'
+import { useI18n, type Lang } from '@/lib/i18n'
+import { getUserSidebarStats } from '@/lib/queries'
 
 const LANGUAGES: { value: Lang; label: string; flag: string }[] = [
   { value: 'fr', label: 'Français', flag: '🇫🇷' },
@@ -14,13 +15,13 @@ const LANGUAGES: { value: Lang; label: string; flag: string }[] = [
 
 export default function SettingsPage() {
   const router = useRouter()
+  const { lang: language, setLang, t } = useI18n()
   const [email, setEmail] = useState('')
   const [userInitials, setUserInitials] = useState('?')
-  const [language, setLanguage] = useState<Lang>('fr')
   const [notifEnabled, setNotifEnabled] = useState(true)
   const [saveMsg, setSaveMsg] = useState('')
-  const [userXp] = useState(0)
-  const [userStreak] = useState(0)
+  const [userXp, setUserXp] = useState(0)
+  const [userStreak, setUserStreak] = useState(0)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -28,18 +29,16 @@ export default function SettingsPage() {
       if (u) {
         setEmail(u.email ?? '')
         setUserInitials((u.email ?? '?').slice(0, 2).toUpperCase())
+        getUserSidebarStats(u.id).then(({ xp, streak }) => { setUserXp(xp); setUserStreak(streak) })
       }
     })
-    const saved = localStorage.getItem('mediq_language') as Lang | null
-    if (saved) setLanguage(saved)
     const notif = localStorage.getItem('mediq_notifications')
     if (notif !== null) setNotifEnabled(notif === 'true')
   }, [])
 
   function handleLanguageChange(lang: Lang) {
-    setLanguage(lang)
-    localStorage.setItem('mediq_language', lang)
-    setSaveMsg('Langue sauvegardée !')
+    setLang(lang)
+    setSaveMsg(t.languageSaved)
     setTimeout(() => setSaveMsg(''), 2000)
   }
 
@@ -71,7 +70,7 @@ export default function SettingsPage() {
           fontSize: 18,
           color: '#09090b',
         }}>
-          Paramètres ⚙️
+          {t.settingsTitle}
         </div>
 
         {/* Header */}
@@ -80,13 +79,13 @@ export default function SettingsPage() {
           padding: '28px 32px',
           color: 'white',
         }}>
-          <div style={{ fontWeight: 900, fontSize: 20 }}>Paramètres</div>
+          <div style={{ fontWeight: 900, fontSize: 20 }}>{t.settingsTitle}</div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
-            Personnalisez votre expérience MEDIQ
+            {t.settingsSubtitle}
           </div>
         </div>
 
-        <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 620 }}>
+        <div style={{ padding: '28px 32px', display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 620, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
           {saveMsg && (
             <div style={{
               background: '#f0fdf4', border: '1px solid #bbf7d0',
@@ -106,7 +105,7 @@ export default function SettingsPage() {
             padding: '22px 24px',
           }}>
             <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>
-              LANGUE
+              {t.language}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {LANGUAGES.map(lang => (
@@ -149,7 +148,7 @@ export default function SettingsPage() {
             padding: '22px 24px',
           }}>
             <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>
-              NOTIFICATIONS
+              {t.notifications}
             </div>
             <div style={{
               display: 'flex',
@@ -158,9 +157,9 @@ export default function SettingsPage() {
               padding: '12px 0',
             }}>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 14, color: '#09090b' }}>Rappels quotidiens</div>
+                <div style={{ fontWeight: 900, fontSize: 14, color: '#09090b' }}>{t.dailyReminder}</div>
                 <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
-                  Recevoir un rappel pour vos révisions quotidiennes
+                  {t.dailyReminderDesc}
                 </div>
               </div>
               <button
@@ -202,7 +201,7 @@ export default function SettingsPage() {
             padding: '22px 24px',
           }}>
             <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>
-              COMPTE
+              {t.account}
             </div>
             <div style={{
               display: 'flex',
@@ -240,7 +239,7 @@ export default function SettingsPage() {
             padding: '22px 24px',
           }}>
             <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 14 }}>
-              DÉCONNEXION
+              {t.signOutSection}
             </div>
             <button
               onClick={handleLogout}
@@ -263,7 +262,7 @@ export default function SettingsPage() {
                 (e.currentTarget as HTMLButtonElement).style.background = '#fef2f2'
               }}
             >
-              Se déconnecter
+              {t.signOut}
             </button>
           </div>
         </div>

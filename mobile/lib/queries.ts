@@ -154,6 +154,16 @@ export async function getQuizzesByCase(caseId: string): Promise<Quiz[]> {
   return data ?? []
 }
 
+export async function getQuizzesByCases(caseIds: string[]): Promise<{ id: string; case_id: string }[]> {
+  if (caseIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('id, case_id')
+    .in('case_id', caseIds)
+  if (error) return []
+  return data ?? []
+}
+
 // ── User progress ─────────────────────────────────────────────────────────────
 
 export async function saveQuizAnswer(
@@ -169,7 +179,7 @@ export async function saveQuizAnswer(
     interval_days: number
   }
 ): Promise<void> {
-  await supabase.from('user_progress').upsert(
+  const { error } = await supabase.from('user_progress').upsert(
     {
       user_id: userId,
       ...payload,
@@ -177,6 +187,7 @@ export async function saveQuizAnswer(
     },
     { onConflict: 'user_id,quiz_id' }
   )
+  if (error) console.error('[saveQuizAnswer] error:', error)
 }
 
 export async function getUserProgress(userId: string, caseIds: string[]): Promise<UserProgress[]> {

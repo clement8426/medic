@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import { getCaseById, getQuizzesByCase, saveQuizAnswer, getQuizProgress, saveSessionStats, submitReport } from '@/lib/queries'
+import { getCaseById, getQuizzesByCase, saveQuizAnswer, getQuizProgress, saveSessionStats, submitReport, getUserSidebarStats } from '@/lib/queries'
 import {
   shuffleOptions,
   getQuizField,
@@ -351,8 +351,8 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
   const [error, setError] = useState<string | null>(null)
   const [userInitials, setUserInitials] = useState('?')
   const [userId, setUserId] = useState<string | null>(null)
-  const [userXp] = useState(0)
-  const [userStreak] = useState(0)
+  const [userXp, setUserXp] = useState(0)
+  const [userStreak, setUserStreak] = useState(0)
 
   // Quiz state
   const [stepIdx, setStepIdx] = useState(0)
@@ -406,6 +406,7 @@ export default function QuizPage({ params }: { params: Promise<{ id: string }> }
       if (u) {
         setUserId(u.id)
         setUserInitials((u.email ?? '?').slice(0, 2).toUpperCase())
+        getUserSidebarStats(u.id).then(({ xp, streak }) => { setUserXp(xp); setUserStreak(streak) })
       }
     })
   }, [caseId])

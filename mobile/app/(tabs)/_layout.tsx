@@ -1,8 +1,10 @@
 import { Tabs } from 'expo-router'
 import { BookOpen, Trophy, User } from 'lucide-react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { colors } from '../../constants/colors'
 
 export default function TabsLayout() {
+  const { bottom } = useSafeAreaInsets()
   return (
     <Tabs
       screenOptions={{
@@ -12,8 +14,8 @@ export default function TabsLayout() {
         tabBarStyle: {
           borderTopColor: colors.border,
           backgroundColor: colors.card,
-          paddingBottom: 4,
-          height: 60,
+          paddingBottom: 4 + bottom,
+          height: 60 + bottom,
         },
         tabBarLabelStyle: {
           fontSize: 11,

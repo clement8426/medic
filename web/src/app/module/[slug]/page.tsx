@@ -3,9 +3,11 @@ import { useEffect, useState, use } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import { getModuleBySlug, getUserProgress } from '@/lib/queries'
+import { getModuleBySlug, getQuizzesByCases, getQuizProgress, getUserSidebarStats } from '@/lib/queries'
 import { ModuleIcon } from '@/components/ui/ModuleIcon'
 import type { Module, Case, UserProgress } from '@/lib/types'
+import { getModuleName, getModuleDesc } from '@/lib/types'
+import { useI18n } from '@/lib/i18n'
 
 function DifficultyDots({ level }: { level: number }) {
   return (
@@ -30,41 +32,58 @@ function formatTimeLeft(unlockAt: Date): string {
 }
 
 function getCaseStatus(caseId: string, progressByCase: Record<string, UserProgress[]>): {
-  state: 'todo' | 'done' | 'locked'
+  state: 'todo' | 'attempted' | 'done' | 'locked'
   unlocksAt?: Date
+  score?: { correct: number; total: number }
 } {
   const entries = progressByCase[caseId]
   if (!entries || entries.length === 0) return { state: 'todo' }
 
   const now = new Date()
-  const lockedEntry = entries.find(e =>
-    !e.answered_correctly &&
-    e.next_review_at &&
-    new Date(e.next_review_at) > now
-  )
-  if (lockedEntry) return { state: 'locked', unlocksAt: new Date(lockedEntry.next_review_at!) }
+  const correct = entries.filter(e => e.answered_correctly).length
+  const total = entries.length
+  const score = { correct, total }
 
-  const allCorrect = entries.every(e => e.answered_correctly)
-  return { state: allCorrect ? 'done' : 'todo' }
+  // Lock if any wrong answer is in cooldown
+  const wrongLocked = entries.find(e =>
+    !e.answered_correctly && e.next_review_at && new Date(e.next_review_at) > now
+  )
+  if (wrongLocked) return { state: 'locked', unlocksAt: new Date(wrongLocked.next_review_at!), score }
+
+  // Lock if all correct but SRS window not expired yet (prevents immediate redo)
+  if (correct === total) {
+    const allInWindow = entries.every(e => e.next_review_at && new Date(e.next_review_at) > now)
+    if (allInWindow) {
+      const earliest = entries
+        .map(e => new Date(e.next_review_at!))
+        .reduce((min, d) => (d < min ? d : min))
+      return { state: 'locked', unlocksAt: earliest, score }
+    }
+    return { state: 'done', score }
+  }
+
+  return { state: 'attempted', score }
 }
 
 export default function ModuleDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params)
   const router = useRouter()
+  const { t, lang } = useI18n()
   const [mod, setMod] = useState<Module | null>(null)
   const [cases, setCases] = useState<Case[]>([])
   const [progressByCase, setProgressByCase] = useState<Record<string, UserProgress[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userInitials, setUserInitials] = useState('?')
-  const [userXp] = useState(0)
-  const [userStreak] = useState(0)
+  const [userXp, setUserXp] = useState(0)
+  const [userStreak, setUserStreak] = useState(0)
 
   useEffect(() => {
     async function load() {
       try {
         const { data: { user } } = await supabase.auth.getUser()
         if (user?.email) setUserInitials(user.email.slice(0, 2).toUpperCase())
+        if (user) getUserSidebarStats(user.id).then(({ xp, streak }) => { setUserXp(xp); setUserStreak(streak) })
 
         const m = await getModuleBySlug(slug)
         if (!m) { setError('Module introuvable'); setLoading(false); return }
@@ -80,11 +99,20 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
         setCases(loadedCases)
 
         if (user && loadedCases.length > 0) {
-          const progress = await getUserProgress(user.id, loadedCases.map(c => c.id))
+          const caseIds = loadedCases.map(c => c.id)
+          const quizzes = await getQuizzesByCases(caseIds)
+          const quizToCaseId: Record<string, string> = {}
+          for (const q of quizzes) quizToCaseId[q.id] = q.case_id
+
+          const quizIds = quizzes.map(q => q.id)
+          const progress = await getQuizProgress(user.id, quizIds)
+
           const byCase: Record<string, UserProgress[]> = {}
           for (const p of progress) {
-            if (!byCase[p.case_id]) byCase[p.case_id] = []
-            byCase[p.case_id].push(p)
+            const caseId = (p as any).case_id ?? quizToCaseId[p.quiz_id]
+            if (!caseId) continue
+            if (!byCase[caseId]) byCase[caseId] = []
+            byCase[caseId].push(p)
           }
           setProgressByCase(byCase)
         }
@@ -125,10 +153,10 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
               display: 'flex', alignItems: 'center', gap: 6,
             }}
           >
-            ← Retour
+            {t.back}
           </button>
           <div style={{ fontWeight: 900, fontSize: 18, color: '#09090b' }}>
-            {mod?.name_fr ?? '…'}
+            {mod ? getModuleName(mod, lang) : '…'}
           </div>
         </div>
 
@@ -164,27 +192,28 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
                   <ModuleIcon icon={mod.icon} size={28} color="white" strokeWidth={1.75} />
                 </div>
                 <div>
-                  <div style={{ fontSize: 22, fontWeight: 900 }}>{mod.name_fr}</div>
+                  <div style={{ fontSize: 22, fontWeight: 900 }}>{getModuleName(mod, lang)}</div>
                   <div style={{ fontSize: 13, color: 'rgba(167,243,208,0.8)', marginTop: 2 }}>
-                    {doneCount} / {cases.length} cas réussis
+                    {doneCount} / {cases.length} {t.casesDone}
                   </div>
                 </div>
               </div>
               <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', maxWidth: 600, lineHeight: 1.5 }}>
-                {mod.description_fr}
+                {getModuleDesc(mod, lang)}
               </div>
             </div>
 
             {/* Cases list */}
             <div style={{ padding: '28px 32px' }}>
               <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8', marginBottom: 16 }}>
-                CAS CLINIQUES — {cases.length} cas
+                {t.clinicalCases} — {cases.length} {t.cases.toLowerCase()}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {cases.map(c => {
-                  const { state, unlocksAt } = getCaseStatus(c.id, progressByCase)
-                  const locked = state === 'locked'
+                  const { state, unlocksAt, score } = getCaseStatus(c.id, progressByCase)
+                  const locked    = state === 'locked'
+                  const attempted = state === 'attempted'
                   const preview = c.report_fr
                     ? c.report_fr.replace(/\n/g, ' ').slice(0, 120) + (c.report_fr.length > 120 ? '…' : '')
                     : null
@@ -194,9 +223,9 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
                       key={c.id}
                       onClick={() => { if (!locked) router.push(`/quiz/${c.id}`) }}
                       style={{
-                        background: locked ? '#fafafa' : 'white',
+                        background: locked ? '#fafafa' : attempted ? '#f0f9ff' : 'white',
                         borderRadius: 18,
-                        border: `1px solid ${locked ? '#f0f0f0' : '#e4e4e7'}`,
+                        border: `1px solid ${locked ? '#f0f0f0' : attempted ? '#bae6fd' : '#e4e4e7'}`,
                         boxShadow: locked ? 'none' : '0 2px 8px rgba(0,0,0,0.06)',
                         padding: '18px 22px',
                         cursor: locked ? 'default' : 'pointer',
@@ -224,7 +253,9 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
                           ? '#e4e4e7'
                           : state === 'done'
                             ? 'linear-gradient(135deg,#16a34a,#0891b2)'
-                            : 'linear-gradient(135deg,#0F766E,#0891b2)',
+                            : attempted
+                              ? 'linear-gradient(135deg,#0891b2,#6366f1)'
+                              : 'linear-gradient(135deg,#0F766E,#0891b2)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         fontWeight: 900, color: 'white', fontSize: locked ? 18 : 15,
                       }}>
@@ -235,7 +266,7 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
                           <span style={{ fontWeight: 900, fontSize: 15, color: locked ? '#a1a1aa' : '#09090b' }}>
-                            Cas #{c.case_number}
+                            {t.caseLabel} #{c.case_number}
                           </span>
                           <span style={{ fontSize: 12, color: '#71717a', fontWeight: 600 }}>
                             {c.age} ans · {c.sex}
@@ -252,9 +283,14 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
                           </div>
                         )}
 
+                        {locked && score && (
+                          <div style={{ fontSize: 12, color: '#92400e', fontWeight: 700, marginBottom: 4 }}>
+                            {score.correct}/{score.total} {t.correct}
+                          </div>
+                        )}
                         {locked && unlocksAt && (
                           <div style={{ fontSize: 12, color: '#f97316', fontWeight: 700, marginBottom: 8 }}>
-                            Disponible dans {formatTimeLeft(unlocksAt)}
+                            ⏱ {t.availableIn} {formatTimeLeft(unlocksAt)}
                           </div>
                         )}
 
@@ -273,29 +309,51 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
                       </div>
 
                       {/* Status badge */}
-                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, marginTop: 2 }}>
+                      <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, marginTop: 2 }}>
                         {state === 'done' && (
-                          <span style={{
-                            background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0',
-                            borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 900,
-                          }}>
-                            ✓ Réussi
-                          </span>
+                          <>
+                            <span style={{
+                              background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0',
+                              borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 900,
+                            }}>
+                              {t.done}
+                            </span>
+                            {score && (
+                              <span style={{ fontSize: 11, color: '#16a34a', fontWeight: 700 }}>
+                                {score.correct}/{score.total} {t.correct}
+                              </span>
+                            )}
+                          </>
                         )}
                         {state === 'locked' && (
-                          <span style={{
-                            background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa',
-                            borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 900,
-                          }}>
-                            Cooldown
-                          </span>
+                          <>
+                            <span style={{
+                              background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa',
+                              borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 900,
+                            }}>
+                              {t.cooldown}
+                            </span>
+                            {score && (
+                              <span style={{ fontSize: 11, color: '#c2410c', fontWeight: 700 }}>
+                                {score.correct}/{score.total} {t.correct}
+                              </span>
+                            )}
+                          </>
                         )}
                         {state === 'todo' && (
                           <span style={{
                             background: '#f4f4f5', color: '#71717a', border: '1px solid #e4e4e7',
                             borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 700,
                           }}>
-                            À faire
+                            {t.todo}
+                          </span>
+                        )}
+                        {attempted && score && (
+                          <span style={{
+                            background: '#e0f2fe', color: '#0c4a6e', border: '1px solid #bae6fd',
+                            borderRadius: 99, padding: '4px 12px', fontSize: 11, fontWeight: 900,
+                          }}>
+                            {score.correct}/{score.total} {t.correct} · {t.redo}
                           </span>
                         )}
                         {!locked && <div style={{ color: '#94a3b8', fontSize: 18 }}>›</div>}
@@ -307,7 +365,7 @@ export default function ModuleDetailPage({ params }: { params: Promise<{ slug: s
 
               {cases.length === 0 && !loading && (
                 <div style={{ textAlign: 'center', padding: 48, color: '#94a3b8', fontWeight: 700 }}>
-                  Aucun cas disponible pour ce module.
+                  {t.noCases}
                 </div>
               )}
             </div>

@@ -1,16 +1,18 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, ActivityIndicator, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useRouter } from 'expo-router'
+import { useRouter, useFocusEffect } from 'expo-router'
 import { supabase } from '../../lib/supabase'
 import { getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAllModuleStats, getModuleQuizMasteredCounts } from '../../lib/queries'
 import { ModuleIcon } from '../../components/ModuleIcon'
 import { Flame, Star, BookOpen as BookOpenIcon } from 'lucide-react-native'
 import type { Module, UserModuleStats } from '../../lib/types'
 import { colors } from '../../constants/colors'
+import { useI18n } from '../../lib/i18n'
 
 export default function LearnScreen() {
   const router = useRouter()
+  const { t } = useI18n()
   const [modules, setModules] = useState<Module[]>([])
   const [caseCounts, setCaseCounts] = useState<Record<string, number>>({})
   const [quizCounts, setQuizCounts] = useState<Record<string, number>>({})
@@ -32,6 +34,15 @@ export default function LearnScreen() {
     }
     init()
   }, [])
+
+  // Reload stats (XP, streak, case counts) every time the tab gains focus
+  useFocusEffect(
+    useCallback(() => {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data.user?.id) loadStats(data.user.id)
+      })
+    }, [])
+  )
 
   async function loadStats(userId: string) {
     const stats = await getUserAllModuleStats(userId)
@@ -70,12 +81,12 @@ export default function LearnScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.headerGreeting}>Bonjour 👋</Text>
-            <Text style={styles.headerSub}>Prêt à apprendre ?</Text>
+            <Text style={styles.headerGreeting}>{t.greeting}</Text>
+            <Text style={styles.headerSub}>{t.greetingSub}</Text>
           </View>
-          <View style={styles.avatar}>
+          <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profile')}>
             <Text style={styles.avatarText}>{initials}</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsGrid}>
@@ -84,7 +95,7 @@ export default function LearnScreen() {
               <Flame size={14} color="white" strokeWidth={2} />
               <Text style={styles.statValue}>{streak}</Text>
             </View>
-            <Text style={styles.statLabel}>Jours</Text>
+            <Text style={styles.statLabel}>{t.days}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
@@ -92,7 +103,7 @@ export default function LearnScreen() {
               <Star size={14} color="white" strokeWidth={2} />
               <Text style={styles.statValue}>{totalXp}</Text>
             </View>
-            <Text style={styles.statLabel}>XP</Text>
+            <Text style={styles.statLabel}>{t.xp}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
@@ -100,7 +111,7 @@ export default function LearnScreen() {
               <BookOpenIcon size={14} color="white" strokeWidth={2} />
               <Text style={styles.statValue}>{totalCases}</Text>
             </View>
-            <Text style={styles.statLabel}>Cas</Text>
+            <Text style={styles.statLabel}>{t.cases}</Text>
           </View>
         </View>
       </View>
@@ -114,7 +125,7 @@ export default function LearnScreen() {
 
         {error && (
           <View style={[styles.centered, { marginTop: 32 }]}>
-            <Text style={styles.errorText}>Impossible de charger les modules</Text>
+            <Text style={styles.errorText}>{t.loadError}</Text>
             <TouchableOpacity onPress={loadModules} style={styles.retryButton}>
               <Text style={styles.retryText}>Réessayer</Text>
             </TouchableOpacity>
@@ -124,8 +135,8 @@ export default function LearnScreen() {
         {!loading && !error && (
           <>
             {[
-              { key: 'clinical' as const, label: 'Cas Cliniques' },
-              { key: 'classic' as const, label: 'Révision Classique' },
+              { key: 'clinical' as const, label: t.clinicalCases },
+              { key: 'classic' as const, label: t.classicRevision },
             ].map(section => {
               const sectionMods = modules.filter(m => (m.category ?? 'clinical') === section.key)
               if (sectionMods.length === 0) return null
@@ -173,11 +184,11 @@ export default function LearnScreen() {
                               </Text>
                               {comingSoon ? (
                                 <View style={styles.badgeComingSoon}>
-                                  <Text style={styles.badgeComingSoonText}>À venir</Text>
+                                  <Text style={styles.badgeComingSoonText}>{t.comingSoon}</Text>
                                 </View>
                               ) : isClassic ? (
                                 <View style={styles.badgeClassic}>
-                                  <Text style={styles.badgeClassicText}>Classique</Text>
+                                  <Text style={styles.badgeClassicText}>{t.classic}</Text>
                                 </View>
                               ) : (
                                 <View style={styles.badgeActive}>
@@ -186,7 +197,7 @@ export default function LearnScreen() {
                               )}
                             </View>
                             <Text style={[styles.cardDesc, comingSoon && styles.textMuted]} numberOfLines={2}>
-                              {comingSoon ? 'Contenu en cours de préparation' : module.description_fr}
+                              {comingSoon ? t.comingSoonContent : module.description_fr}
                             </Text>
                             {!comingSoon && !isClassic && (
                               <View style={styles.progressBarBg}>
@@ -202,7 +213,7 @@ export default function LearnScreen() {
                               return (
                                 <View>
                                   <View style={styles.progressLabels}>
-                                    <Text style={styles.progressLabelLeft}>Maîtrisées</Text>
+                                    <Text style={styles.progressLabelLeft}>{t.mastered}</Text>
                                     <Text style={styles.progressLabelRight}>{qMastered} / {qTotal}</Text>
                                   </View>
                                   <View style={styles.progressBarBg}>
@@ -224,7 +235,7 @@ export default function LearnScreen() {
 
         {!loading && !error && modules.length === 0 && (
           <View style={styles.centered}>
-            <Text style={styles.emptyText}>Aucun module disponible</Text>
+            <Text style={styles.emptyText}>{t.noModules}</Text>
           </View>
         )}
       </ScrollView>

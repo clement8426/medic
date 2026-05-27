@@ -11,8 +11,10 @@ import {
 } from '@/lib/queries'
 import { Users, Search, UserPlus, Check, X, Star, Flame, BookOpen } from 'lucide-react'
 import type { FriendWithStats, UserSearchResult } from '@/lib/types'
+import { useI18n } from '@/lib/i18n'
 
 export default function FriendsPage() {
+  const { t } = useI18n()
   const [userId, setUserId] = useState('')
   const [userInitials, setUserInitials] = useState('?')
   const [userXp, setUserXp] = useState(0)
@@ -113,7 +115,7 @@ export default function FriendsPage() {
           fontWeight: 900, fontSize: 18, color: '#09090b',
         }}>
           <Users size={20} color="#0F766E" strokeWidth={2} />
-          Amis
+          {t.friendsTitle}
         </div>
 
         {/* Header */}
@@ -121,9 +123,9 @@ export default function FriendsPage() {
           background: 'linear-gradient(160deg,#0F766E 0%,#134e4a 100%)',
           padding: '36px 32px', color: 'white',
         }}>
-          <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 6 }}>Vos amis</div>
+          <div style={{ fontWeight: 900, fontSize: 24, marginBottom: 6 }}>{t.friendsHeader}</div>
           <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)' }}>
-            Recherchez des utilisateurs et comparez votre progression
+            {t.friendsSubtitle}
           </div>
         </div>
 
@@ -131,7 +133,7 @@ export default function FriendsPage() {
 
           {/* ── Search ── */}
           <div>
-            <div style={sectionLabel}>RECHERCHER UN AMI</div>
+            <div style={sectionLabel}>{t.searchFriend}</div>
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ flex: 1, position: 'relative' }}>
                 <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
@@ -140,7 +142,7 @@ export default function FriendsPage() {
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                  placeholder="Rechercher par email…"
+                  placeholder={t.searchPlaceholder}
                   style={{
                     width: '100%', padding: '13px 16px 13px 42px',
                     borderRadius: 14, border: '1px solid #e4e4e7',
@@ -161,7 +163,7 @@ export default function FriendsPage() {
                   fontFamily: 'inherit',
                 }}
               >
-                {searching ? '…' : 'Rechercher'}
+                {searching ? '…' : t.search}
               </button>
             </div>
 
@@ -169,20 +171,21 @@ export default function FriendsPage() {
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {searchResults.length === 0 ? (
                   <div style={{ color: '#71717a', fontSize: 14, fontWeight: 700, padding: '10px 0' }}>
-                    Aucun utilisateur trouvé
+                    {t.noUserFound}
                   </div>
                 ) : searchResults.map(u => {
                   const alreadySent = sentRequests.has(u.user_id)
                   const alreadyFriend = friends.some(f => f.friend_id === u.user_id)
+                  const displayName = u.pseudo || u.email.split('@')[0]
                   return (
                     <div key={u.user_id} style={{
                       background: 'white', borderRadius: 14, border: '1px solid #e4e4e7',
                       padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
                     }}>
-                      <div style={avatarStyle()}>{u.email.slice(0, 2).toUpperCase()}</div>
+                      <div style={avatarStyle()}>{displayName.slice(0, 2).toUpperCase()}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 900, fontSize: 14, color: '#09090b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {u.email}
+                          {displayName}
                         </div>
                         <div style={{ fontSize: 12, color: '#71717a', marginTop: 2, display: 'flex', gap: 10 }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -191,7 +194,7 @@ export default function FriendsPage() {
                           </span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                             <Flame size={10} color="#f97316" fill="#f97316" />
-                            {u.max_streak} j
+                            {u.max_streak} {t.shortDays}
                           </span>
                         </div>
                       </div>
@@ -200,12 +203,12 @@ export default function FriendsPage() {
                           fontSize: 12, fontWeight: 700, color: '#0F766E',
                           background: '#f0fdf4', borderRadius: 8, padding: '4px 10px',
                           border: '1px solid #bbf7d0',
-                        }}>Déjà ami</span>
+                        }}>{t.alreadyFriend}</span>
                       ) : alreadySent ? (
                         <span style={{
                           fontSize: 12, fontWeight: 700, color: '#94a3b8',
                           background: '#f4f4f5', borderRadius: 8, padding: '4px 10px',
-                        }}>Envoyé</span>
+                        }}>{t.requestSent}</span>
                       ) : (
                         <button
                           onClick={() => handleSendRequest(u.user_id)}
@@ -219,7 +222,7 @@ export default function FriendsPage() {
                           }}
                         >
                           <UserPlus size={14} color="white" />
-                          Ajouter
+                          {t.addFriend}
                         </button>
                       )}
                     </div>
@@ -232,20 +235,22 @@ export default function FriendsPage() {
           {/* ── Pending requests ── */}
           {pendingRequests.length > 0 && (
             <div>
-              <div style={sectionLabel}>DEMANDES REÇUES ({pendingRequests.length})</div>
+              <div style={sectionLabel}>{t.pendingRequests} ({pendingRequests.length})</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {pendingRequests.map(req => (
+                {pendingRequests.map(req => {
+                  const displayName = req.pseudo || req.email.split('@')[0]
+                  return (
                   <div key={req.friendship_id} style={{
                     background: 'white', borderRadius: 14, border: '1px solid #e4e4e7',
                     padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
                   }}>
-                    <div style={avatarStyle()}>{req.email.slice(0, 2).toUpperCase()}</div>
+                    <div style={avatarStyle()}>{displayName.slice(0, 2).toUpperCase()}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 900, fontSize: 14, color: '#09090b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {req.email}
+                        {displayName}
                       </div>
                       <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
-                        Souhaite vous ajouter comme ami
+                        {t.wantsToAdd}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -257,7 +262,6 @@ export default function FriendsPage() {
                           background: '#f0fdf4', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}
-                        title="Accepter"
                       >
                         <Check size={16} color="#0F766E" strokeWidth={2.5} />
                       </button>
@@ -269,22 +273,21 @@ export default function FriendsPage() {
                           background: '#fef2f2', cursor: 'pointer',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}
-                        title="Refuser"
                       >
                         <X size={16} color="#991b1b" strokeWidth={2.5} />
                       </button>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             </div>
           )}
 
           {/* ── Friends list ── */}
           <div>
-            <div style={sectionLabel}>MES AMIS ({friends.length})</div>
+            <div style={sectionLabel}>{t.myFriends} ({friends.length})</div>
             {loadingFriends ? (
-              <div style={{ color: '#71717a', fontWeight: 700, padding: '12px 0' }}>Chargement…</div>
+              <div style={{ color: '#71717a', fontWeight: 700, padding: '12px 0' }}>{t.loading}</div>
             ) : friends.length === 0 ? (
               <div style={{
                 background: 'white', borderRadius: 18, border: '1px solid #e4e4e7',
@@ -294,15 +297,18 @@ export default function FriendsPage() {
                   <Users size={44} color="#d4d4d8" strokeWidth={1.5} />
                 </div>
                 <div style={{ fontWeight: 900, fontSize: 17, color: '#09090b', marginBottom: 6 }}>
-                  Aucun ami pour l'instant
+                  {t.noFriendsYet}
                 </div>
                 <div style={{ fontSize: 13, color: '#71717a' }}>
-                  Recherchez des utilisateurs par email pour les ajouter
+                  {t.noFriendsDesc}
                 </div>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {friends.map(f => (
+                {friends.map(f => {
+                  const displayName = f.pseudo || f.email.split('@')[0]
+                  const showEmail = f.show_email && f.email
+                  return (
                   <div key={f.friendship_id} style={{
                     background: 'white', borderRadius: 16,
                     border: '1px solid #e4e4e7',
@@ -310,12 +316,17 @@ export default function FriendsPage() {
                     padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14,
                   }}>
                     <div style={avatarStyle('linear-gradient(135deg,#0F766E22,#0891b222)', '#0F766E')}>
-                      {f.email.slice(0, 2).toUpperCase()}
+                      {displayName.slice(0, 2).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 900, fontSize: 14, color: '#09090b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {f.email}
+                        {displayName}
                       </div>
+                      {showEmail && (
+                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {f.email}
+                        </div>
+                      )}
                       <div style={{ display: 'flex', gap: 14, marginTop: 4 }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#71717a' }}>
                           <Star size={11} color="#f59e0b" fill="#f59e0b" />
@@ -323,16 +334,16 @@ export default function FriendsPage() {
                         </span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#71717a' }}>
                           <Flame size={11} color="#f97316" fill="#f97316" />
-                          {f.max_streak} j streak
+                          {f.max_streak} {t.shortDays} {t.streak.toLowerCase()}
                         </span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, color: '#71717a' }}>
                           <BookOpen size={11} color="#0F766E" />
-                          {Number(f.cases_completed)} cas
+                          {Number(f.cases_completed)} {t.cases.toLowerCase()}
                         </span>
                       </div>
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             )}
           </div>

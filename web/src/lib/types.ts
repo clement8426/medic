@@ -179,6 +179,8 @@ export interface AdminReport {
 export interface UserSearchResult {
   user_id: string
   email: string
+  pseudo: string
+  show_email: boolean
   total_xp: number
   max_streak: number
   cases_completed: number
@@ -188,6 +190,8 @@ export interface FriendWithStats {
   friendship_id: string
   friend_id: string
   email: string
+  pseudo: string
+  show_email: boolean
   status: 'pending' | 'accepted' | 'declined'
   is_requester: boolean
   total_xp: number
@@ -209,6 +213,14 @@ export interface AdminFeedback {
   status: FeedbackStatus
   admin_note: string | null
   created_at: string
+}
+
+export function getModuleName(mod: Module, lang: Lang): string {
+  return (mod[`name_${lang}` as keyof Module] as string) || mod.name_en || mod.name_fr
+}
+
+export function getModuleDesc(mod: Module, lang: Lang): string {
+  return (mod[`description_${lang}` as keyof Module] as string) || mod.description_en || mod.description_fr
 }
 
 // UI-only types

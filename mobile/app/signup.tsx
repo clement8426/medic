@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { colors } from '../constants/colors'
+import { HeartPulse } from 'lucide-react-native'
 
 export default function SignupScreen() {
   const router = useRouter()
@@ -43,7 +44,7 @@ export default function SignupScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.logoContainer}>
-          <Text style={styles.logoEmoji}>❤️</Text>
+          <HeartPulse size={52} color={colors.primary} strokeWidth={1.5} />
           <Text style={styles.logoText}>MEDIQ</Text>
         </View>
 
@@ -118,10 +119,6 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  logoEmoji: {
-    fontSize: 48,
-    marginBottom: 4,
   },
   logoText: {
     fontSize: 28,

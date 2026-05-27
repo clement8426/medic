@@ -4,8 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { colors } from '../constants/colors'
+import { useI18n, type Lang } from '../lib/i18n'
+import { Mail, ChevronLeft, LogOut } from 'lucide-react-native'
 
-const LANGUAGES = [
+const LANGUAGES: { code: Lang; label: string }[] = [
   { code: 'fr', label: '🇫🇷 Français' },
   { code: 'en', label: '🇬🇧 English' },
   { code: 'de', label: '🇩🇪 Deutsch' },
@@ -14,7 +16,7 @@ const LANGUAGES = [
 
 export default function SettingsScreen() {
   const router = useRouter()
-  const [lang, setLang] = useState('fr')
+  const { lang, setLang, t } = useI18n()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -26,12 +28,12 @@ export default function SettingsScreen() {
 
   async function handleSignOut() {
     Alert.alert(
-      'Déconnexion',
-      'Voulez-vous vraiment vous déconnecter ?',
+      t.signOutTitle,
+      t.signOutConfirm,
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t.cancel, style: 'cancel' },
         {
-          text: 'Déconnexion',
+          text: t.signOutShort,
           style: 'destructive',
           onPress: async () => {
             setLoading(true)
@@ -48,13 +50,13 @@ export default function SettingsScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backIcon}>‹</Text>
+          <ChevronLeft size={26} color="white" strokeWidth={2.5} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Paramètres</Text>
+        <Text style={styles.headerTitle}>{t.settingsTitle}</Text>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionLabel}>Langue</Text>
+        <Text style={styles.sectionLabel}>{t.language}</Text>
         <View style={styles.card}>
           {LANGUAGES.map((l, idx) => (
             <TouchableOpacity
@@ -75,12 +77,12 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={styles.sectionLabel}>Compte</Text>
+        <Text style={styles.sectionLabel}>{t.account}</Text>
         <View style={styles.card}>
           <View style={styles.accountRow}>
-            <Text style={styles.accountIcon}>📧</Text>
+            <Mail size={20} color={colors.textMuted} strokeWidth={2} />
             <View>
-              <Text style={styles.accountLabel}>Email</Text>
+              <Text style={styles.accountLabel}>{t.email}</Text>
               <Text style={styles.accountValue}>{email || '—'}</Text>
             </View>
           </View>
@@ -91,9 +93,12 @@ export default function SettingsScreen() {
           onPress={handleSignOut}
           disabled={loading}
         >
-          <Text style={styles.signOutText}>
-            {loading ? 'Déconnexion...' : '🚪 Se déconnecter'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <LogOut size={18} color={colors.errorText} strokeWidth={2} />
+            <Text style={styles.signOutText}>
+              {loading ? `${t.signOutShort}...` : t.signOut}
+            </Text>
+          </View>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -113,13 +118,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButton: {
-    marginRight: 12,
-  },
-  backIcon: {
-    fontSize: 28,
-    color: 'white',
-    fontWeight: '700' as any,
-    lineHeight: 28,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4,
   },
   headerTitle: {
     fontSize: 20,
@@ -186,9 +189,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     gap: 14,
-  },
-  accountIcon: {
-    fontSize: 22,
   },
   accountLabel: {
     fontWeight: '800' as any,

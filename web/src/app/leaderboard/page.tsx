@@ -2,14 +2,23 @@
 import { useEffect, useState } from 'react'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
+import { useI18n } from '@/lib/i18n'
+import { Trophy } from 'lucide-react'
 
-const TITLE_LABELS: Record<string, { label: string; color: string; bg: string }> = {
-  medecin:       { label: 'Médecin',         color: '#166534', bg: '#f0fdf4' },
-  infirmier:     { label: 'Infirmier(ère)',   color: '#0c4a6e', bg: '#f0f9ff' },
-  sage_femme:    { label: 'Sage-femme',       color: '#4c1d95', bg: '#faf5ff' },
-  aide_soignant: { label: 'Aide-soignant(e)', color: '#9a3412', bg: '#fff7ed' },
-  etudiant:      { label: 'Étudiant(e)',      color: '#374151', bg: '#f9fafb' },
-  autre:         { label: 'Autre',            color: '#71717a', bg: '#fafafa' },
+type TitleKey = 'medecin' | 'infirmier' | 'sage_femme' | 'aide_soignant' | 'etudiant' | 'autre'
+
+const TITLE_COLORS: Record<TitleKey, { color: string; bg: string }> = {
+  medecin:       { color: '#166534', bg: '#f0fdf4' },
+  infirmier:     { color: '#0c4a6e', bg: '#f0f9ff' },
+  sage_femme:    { color: '#4c1d95', bg: '#faf5ff' },
+  aide_soignant: { color: '#9a3412', bg: '#fff7ed' },
+  etudiant:      { color: '#374151', bg: '#f9fafb' },
+  autre:         { color: '#71717a', bg: '#fafafa' },
+}
+
+const TITLE_I18N_KEYS: Record<TitleKey, string> = {
+  medecin: 'titleMedecin', infirmier: 'titleInfirmier', sage_femme: 'titleSageFemme',
+  aide_soignant: 'titleAideSoignant', etudiant: 'titleEtudiant', autre: 'titleAutre',
 }
 
 interface PlayerEntry {
@@ -25,6 +34,7 @@ interface PlayerEntry {
 const RANK_COLORS = ['#f59e0b', '#94a3b8', '#cd7f32']
 
 export default function LeaderboardPage() {
+  const { t, lang } = useI18n()
   const [players, setPlayers] = useState<PlayerEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [userInitials, setUserInitials] = useState('?')
@@ -43,7 +53,7 @@ export default function LeaderboardPage() {
       type LeaderRow = { user_id: string; display_name: string; title: string | null; is_anonymous: boolean; total_xp: number; max_streak: number; avatar_url: string | null }
       const sorted: PlayerEntry[] = (data as LeaderRow[] ?? []).map((row, i) => ({
         rank: i + 1,
-        label: row.is_anonymous ? 'Anonyme' : (row.display_name ?? '?'),
+        label: row.is_anonymous ? '' : (row.display_name ?? '?'),
         title: row.is_anonymous ? null : (row.title ?? null),
         xp: row.total_xp ?? 0,
         streak: row.max_streak ?? 0,
@@ -54,12 +64,24 @@ export default function LeaderboardPage() {
       const me = sorted.find(p => p.isYou)
       setUserXp(me?.xp ?? 0)
       setUserStreak(me?.streak ?? 0)
-
       setPlayers(sorted)
       setLoading(false)
     }
     load()
   }, [])
+
+  function getPlayerLabel(p: PlayerEntry): string {
+    if (p.isYou) return t.you
+    if (!p.label) return t.anonymous
+    return p.label
+  }
+
+  function getTitleLabel(title: string): { label: string; color: string; bg: string } | null {
+    const key = title as TitleKey
+    if (!TITLE_COLORS[key]) return null
+    const i18nKey = TITLE_I18N_KEYS[key] as keyof typeof t
+    return { label: t[i18nKey] as string, ...TITLE_COLORS[key] }
+  }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#f4f7f8' }}>
@@ -71,26 +93,30 @@ export default function LeaderboardPage() {
           borderBottom: '1px solid #e4e4e7',
           padding: '16px 32px',
           position: 'sticky', top: 0, zIndex: 10,
+          display: 'flex', alignItems: 'center', gap: 10,
           fontWeight: 900, fontSize: 18, color: '#09090b',
         }}>
-          Classement 🏆
+          <Trophy size={20} color="#f59e0b" strokeWidth={2} />
+          {t.leaderboardTitle}
         </div>
 
         <div style={{
           background: 'linear-gradient(160deg,#0F766E 0%,#134e4a 100%)',
           padding: '32px', color: 'white', textAlign: 'center',
         }}>
-          <div style={{ fontSize: 44 }}>🏆</div>
-          <div style={{ fontWeight: 900, fontSize: 22, marginTop: 8 }}>Classement global</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+            <Trophy size={44} color="rgba(255,255,255,0.9)" strokeWidth={1.5} />
+          </div>
+          <div style={{ fontWeight: 900, fontSize: 22, marginTop: 8 }}>{t.leaderboardHeader}</div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>
-            Tous les utilisateurs — classés par XP
+            {t.leaderboardSubtitle}
           </div>
         </div>
 
         <div style={{ padding: '24px 32px' }}>
           {loading && (
             <div style={{ textAlign: 'center', padding: 48, color: '#71717a', fontWeight: 700 }}>
-              Chargement…
+              {t.loading}
             </div>
           )}
 
@@ -102,10 +128,10 @@ export default function LeaderboardPage() {
             }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>🌱</div>
               <div style={{ fontWeight: 900, fontSize: 18, color: '#09090b', marginBottom: 8 }}>
-                Classement en construction
+                {t.leaderboardEmpty}
               </div>
               <div style={{ fontSize: 14, color: '#71717a', maxWidth: 360, margin: '0 auto', lineHeight: 1.6 }}>
-                Complétez des cas pour apparaître dans le classement.
+                {t.leaderboardEmptyDesc}
               </div>
             </div>
           )}
@@ -117,11 +143,12 @@ export default function LeaderboardPage() {
                   {[players[1], players[0], players[2]].map((p, idx) => {
                     const height = idx === 1 ? 80 : 60
                     const rankIdx = idx === 1 ? 0 : idx === 0 ? 1 : 2
-                    const initial = p.label === 'Anonyme' ? '?' : p.label.slice(0, 1).toUpperCase()
+                    const label = getPlayerLabel(p)
+                    const initial = label === t.anonymous ? '?' : label.slice(0, 1).toUpperCase()
                     return (
                       <div key={p.rank} style={{ textAlign: 'center', flex: '0 0 110px' }}>
                         {p.avatarUrl ? (
-                          <img src={p.avatarUrl} alt={p.label} style={{ width: 52, height: 52, borderRadius: 18, objectFit: 'cover', margin: '0 auto 6px', border: `2px solid ${RANK_COLORS[rankIdx]}`, display: 'block' }} />
+                          <img src={p.avatarUrl} alt={label} style={{ width: 52, height: 52, borderRadius: 18, objectFit: 'cover', margin: '0 auto 6px', border: `2px solid ${RANK_COLORS[rankIdx]}`, display: 'block' }} />
                         ) : (
                           <div style={{
                             width: 52, height: 52, borderRadius: 18, margin: '0 auto 6px',
@@ -134,7 +161,7 @@ export default function LeaderboardPage() {
                           </div>
                         )}
                         <div style={{ fontSize: 12, fontWeight: 900, color: '#09090b', marginBottom: 2 }}>
-                          {p.isYou ? 'Vous' : p.label}
+                          {label}
                         </div>
                         <div style={{ fontSize: 11, color: '#71717a' }}>{p.xp.toLocaleString()} XP</div>
                         <div style={{
@@ -153,7 +180,9 @@ export default function LeaderboardPage() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {players.map(p => {
-                  const initial = p.label === 'Anonyme' ? '?' : p.label.slice(0, 1).toUpperCase()
+                  const label = getPlayerLabel(p)
+                  const initial = label === t.anonymous ? '?' : label.slice(0, 1).toUpperCase()
+                  const titleInfo = p.title ? getTitleLabel(p.title) : null
                   return (
                     <div key={p.rank} style={{
                       background: p.isYou ? '#f0fdf4' : 'white',
@@ -172,7 +201,7 @@ export default function LeaderboardPage() {
                       </div>
 
                       {p.avatarUrl ? (
-                        <img src={p.avatarUrl} alt={p.label} style={{ width: 40, height: 40, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
+                        <img src={p.avatarUrl} alt={label} style={{ width: 40, height: 40, borderRadius: 14, objectFit: 'cover', flexShrink: 0 }} />
                       ) : (
                         <div style={{
                           width: 40, height: 40, borderRadius: 14, flexShrink: 0,
@@ -187,21 +216,20 @@ export default function LeaderboardPage() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' as const }}>
                           <span style={{ fontWeight: 900, fontSize: 14, color: p.isYou ? '#0F766E' : '#09090b' }}>
-                            {p.isYou ? 'Vous' : p.label}
+                            {label}
                           </span>
-                          {p.title && TITLE_LABELS[p.title] && (
+                          {titleInfo && (
                             <span style={{
                               fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 99,
-                              background: TITLE_LABELS[p.title].bg,
-                              color: TITLE_LABELS[p.title].color,
-                              border: `1px solid ${TITLE_LABELS[p.title].color}33`,
+                              background: titleInfo.bg, color: titleInfo.color,
+                              border: `1px solid ${titleInfo.color}33`,
                             }}>
-                              {TITLE_LABELS[p.title].label}
+                              {titleInfo.label}
                             </span>
                           )}
                         </div>
                         <div style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>
-                          🔥 {p.streak} jour{p.streak !== 1 ? 's' : ''} de streak
+                          🔥 {p.streak} {t.days} {t.streakOf}
                         </div>
                       </div>
 

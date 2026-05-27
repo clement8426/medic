@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
 import { computeXp, computeStars, computeResultMessage } from '@/lib/quiz-utils'
+import { getUserSidebarStats } from '@/lib/queries'
 import { resolveImageUrl } from '@/lib/image-utils'
 import type { QuizAnswer } from '@/lib/types'
 
@@ -38,8 +39,8 @@ function RecapContent() {
 
   const [session, setSession] = useState<SessionData | null>(null)
   const [userInitials, setUserInitials] = useState('?')
-  const [userXp] = useState(0)
-  const [userStreak] = useState(0)
+  const [userXp, setUserXp] = useState(0)
+  const [userStreak, setUserStreak] = useState(0)
 
   useEffect(() => {
     const raw = sessionStorage.getItem(`mediq_session_${caseId}`)
@@ -47,8 +48,9 @@ function RecapContent() {
       try { setSession(JSON.parse(raw)) } catch {}
     }
     supabase.auth.getUser().then(({ data }) => {
-      const email = data?.user?.email ?? ''
-      if (email) setUserInitials(email.slice(0, 2).toUpperCase())
+      const u = data?.user
+      if (u?.email) setUserInitials(u.email.slice(0, 2).toUpperCase())
+      if (u) getUserSidebarStats(u.id).then(({ xp, streak }) => { setUserXp(xp); setUserStreak(streak) })
     })
   }, [caseId])
 

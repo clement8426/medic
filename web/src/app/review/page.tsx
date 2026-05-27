@@ -9,6 +9,8 @@ import {
   getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAllModuleStats,
 } from '@/lib/queries'
 import type { UserProgress, Case, Module, UserModuleStats } from '@/lib/types'
+import { getModuleName } from '@/lib/types'
+import { useI18n } from '@/lib/i18n'
 
 interface ReviewItem {
   progress: UserProgress
@@ -17,6 +19,7 @@ interface ReviewItem {
 
 export default function ReviewPage() {
   const router = useRouter()
+  const { lang } = useI18n()
   const [items, setItems] = useState<ReviewItem[]>([])
   const [modules, setModules] = useState<Module[]>([])
   const [caseCounts, setCaseCounts] = useState<Record<string, number>>({})
@@ -292,7 +295,7 @@ export default function ReviewPage() {
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
                                 <div style={{ fontWeight: 900, fontSize: 14, color: comingSoon ? '#a1a1aa' : '#09090b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>
-                                  {mod.name_fr}
+                                  {getModuleName(mod, lang)}
                                 </div>
                                 <span style={{
                                   flexShrink: 0,

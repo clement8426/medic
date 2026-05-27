@@ -7,9 +7,12 @@ import { getActiveModules, getCaseCountsByModule, getModuleQuizCounts, getUserAl
 import { ModuleIcon } from '@/components/ui/ModuleIcon'
 import { Flame, Star, Target } from 'lucide-react'
 import type { Module, UserModuleStats } from '@/lib/types'
+import { getModuleName, getModuleDesc } from '@/lib/types'
+import { useI18n } from '@/lib/i18n'
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { t, lang } = useI18n()
   const [modules, setModules] = useState<Module[]>([])
   const [caseCounts, setCaseCounts] = useState<Record<string, number>>({})
   const [quizCounts, setQuizCounts] = useState<Record<string, number>>({})
@@ -76,7 +79,7 @@ export default function DashboardPage() {
           justifyContent: 'space-between',
         }}>
           <div style={{ fontWeight: 900, fontSize: 20, color: '#09090b' }}>
-            Tableau de bord
+            {t.navDashboard}
           </div>
           <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{
@@ -88,7 +91,7 @@ export default function DashboardPage() {
               fontSize: 13,
               color: '#c2410c',
             }}>
-              {userStreak} jours
+              {userStreak} {t.days}
             </div>
             <div style={{
               background: '#f0fdf4',
@@ -111,20 +114,20 @@ export default function DashboardPage() {
           color: 'white',
         }}>
           <div style={{ fontSize: 13, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'rgba(167,243,208,0.7)', marginBottom: 8 }}>
-            MEDIQ — Formation médicale
+            {t.mediqTagline}
           </div>
           <div style={{ fontSize: 28, fontWeight: 900, marginBottom: 6 }}>
-            Bonjour 👋
+            {t.greeting}
           </div>
           <div style={{ fontSize: 15, color: 'rgba(255,255,255,0.75)', marginBottom: 28 }}>
-            Continuez votre progression quotidienne
+            {t.greetingSub}
           </div>
 
           <div style={{ display: 'flex', gap: 20 }}>
             {([
-              { label: 'Streak', value: `${userStreak} jours`, Icon: Flame },
-              { label: 'XP Total', value: userXp.toLocaleString(), Icon: Star },
-              { label: 'Précision', value: '—', Icon: Target },
+              { label: t.streak, value: `${userStreak} ${t.days}`, Icon: Flame },
+              { label: t.xpTotal, value: userXp.toLocaleString(), Icon: Star },
+              { label: t.precision, value: '—', Icon: Target },
             ] as const).map(stat => (
               <div key={stat.label} style={{
                 background: 'rgba(255,255,255,0.12)',
@@ -149,7 +152,7 @@ export default function DashboardPage() {
         <div style={{ padding: '32px' }}>
           {loading && (
             <div style={{ textAlign: 'center', padding: 60, color: '#71717a', fontWeight: 700 }}>
-              Chargement…
+              {t.loading}
             </div>
           )}
           {error && (
@@ -163,8 +166,8 @@ export default function DashboardPage() {
           )}
 
           {[
-            { key: 'clinical', label: 'Cas Cliniques', desc: 'Cas réels avec image, contexte patient et QCM basés sur le cas' },
-            { key: 'classic', label: 'Révision Classique', desc: 'QCM thématiques sans fiche patient — pharmacologie, biochimie, anatomie...' },
+            { key: 'clinical', label: t.clinicalCases, desc: t.clinicalDesc },
+            { key: 'classic', label: t.classicRevision, desc: t.classicDesc },
           ].map(section => {
             const sectionMods = modules.filter(m => (m.category ?? 'clinical') === section.key)
             if (!loading && sectionMods.length === 0) return null
@@ -181,7 +184,7 @@ export default function DashboardPage() {
                     border: `1px solid ${section.key === 'clinical' ? '#bbf7d0' : '#bae6fd'}`,
                     textTransform: 'uppercase' as const, letterSpacing: '0.08em',
                   }}>
-                    {sectionMods.length} modules
+                    {sectionMods.length} {t.modules}
                   </div>
                 </div>
                 <div style={{ fontSize: 13, color: '#71717a', marginBottom: 18 }}>{section.desc}</div>
@@ -244,7 +247,7 @@ export default function DashboardPage() {
                             color: comingSoon ? '#a1a1aa' : isClassic ? '#0c4a6e' : '#166534',
                             border: `1px solid ${comingSoon ? '#e4e4e7' : isClassic ? '#bae6fd' : '#bbf7d0'}`,
                           }}>
-                            {comingSoon ? 'À venir' : isClassic ? 'Classique' : `${count} cas`}
+                            {comingSoon ? t.comingSoon : isClassic ? t.classic : `${count} ${t.cases.toLowerCase()}`}
                           </span>
                         </div>
 
@@ -264,10 +267,10 @@ export default function DashboardPage() {
                           />
                         </div>
                         <div style={{ fontWeight: 900, fontSize: 16, color: comingSoon ? '#a1a1aa' : '#09090b', marginBottom: 4 }}>
-                          {mod.name_fr}
+                          {getModuleName(mod, lang)}
                         </div>
                         <div style={{ fontSize: 13, color: '#a1a1aa', marginBottom: 16, lineHeight: 1.4 }}>
-                          {comingSoon ? 'Contenu en cours de préparation' : (mod.description_fr?.slice(0, 80) + (mod.description_fr?.length > 80 ? '…' : ''))}
+                          {comingSoon ? t.comingSoonContent : (() => { const d = getModuleDesc(mod, lang); return d.slice(0, 80) + (d.length > 80 ? '…' : '') })()}
                         </div>
 
                         {/* Progress bar (clinical only) */}
@@ -275,7 +278,7 @@ export default function DashboardPage() {
                           <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                               <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
-                                Progression
+                                {t.progression}
                               </span>
                               <span style={{ fontSize: 11, fontWeight: 900, color: '#0F766E' }}>
                                 {completed} / {count}
@@ -300,7 +303,7 @@ export default function DashboardPage() {
                             <div>
                               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase' as const, letterSpacing: '0.08em' }}>
-                                  Maîtrisées
+                                  {t.mastered}
                                 </span>
                                 <span style={{ fontSize: 11, fontWeight: 900, color: '#0891b2' }}>
                                   {qMastered} / {qTotal}

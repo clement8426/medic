@@ -2,18 +2,19 @@ import { useState } from 'react'
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, Linking } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
+import { Stethoscope, Syringe, Baby, HeartHandshake, GraduationCap, Sparkles } from 'lucide-react-native'
 import { supabase } from '../lib/supabase'
 import { upsertProfile } from '../lib/queries'
 import { colors } from '../constants/colors'
 import type { ProfTitle } from '../lib/types'
 
-const TITLES: { value: ProfTitle; label: string; emoji: string }[] = [
-  { value: 'medecin',       label: 'Médecin',         emoji: '🩺' },
-  { value: 'infirmier',     label: 'Infirmier(ère)',   emoji: '💉' },
-  { value: 'sage_femme',    label: 'Sage-femme',       emoji: '👶' },
-  { value: 'aide_soignant', label: 'Aide-soignant(e)', emoji: '🏥' },
-  { value: 'etudiant',      label: 'Étudiant(e)',      emoji: '📚' },
-  { value: 'autre',         label: 'Autre',            emoji: '✨' },
+const TITLES: { value: ProfTitle; label: string; Icon: React.ComponentType<any> }[] = [
+  { value: 'medecin',       label: 'Médecin',         Icon: Stethoscope    },
+  { value: 'infirmier',     label: 'Infirmier(ère)',   Icon: Syringe        },
+  { value: 'sage_femme',    label: 'Sage-femme',       Icon: Baby           },
+  { value: 'aide_soignant', label: 'Aide-soignant(e)', Icon: HeartHandshake },
+  { value: 'etudiant',      label: 'Étudiant(e)',      Icon: GraduationCap  },
+  { value: 'autre',         label: 'Autre',            Icon: Sparkles       },
 ]
 
 export default function OnboardingScreen() {
@@ -93,7 +94,7 @@ export default function OnboardingScreen() {
                   style={[s.titleCard, title === t.value && s.titleCardSelected]}
                   onPress={() => setTitle(t.value)}
                 >
-                  <Text style={s.titleEmoji}>{t.emoji}</Text>
+                  <t.Icon size={22} color={title === t.value ? colors.primary : colors.textMuted} strokeWidth={1.75} />
                   <Text style={[s.titleLabel, title === t.value && s.titleLabelSelected]}>{t.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -224,7 +225,6 @@ const s = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 28 },
   titleCard: { width: '47%', backgroundColor: colors.bg, borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 2, borderColor: 'transparent', gap: 6 },
   titleCardSelected: { backgroundColor: '#e6f4f3', borderColor: colors.primary },
-  titleEmoji: { fontSize: 22 },
   titleLabel: { fontSize: 13, fontWeight: '700' as any, color: colors.text, textAlign: 'center' },
   titleLabelSelected: { color: colors.primary },
   genderRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },

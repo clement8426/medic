@@ -14,9 +14,11 @@ import {
 import { Users, Search, UserPlus, Check, X, Star, Flame, BookOpen, ChevronLeft } from 'lucide-react-native'
 import { colors } from '../constants/colors'
 import type { FriendWithStats, UserSearchResult } from '../lib/types'
+import { useI18n } from '../lib/i18n'
 
 export default function FriendsScreen() {
   const router = useRouter()
+  const { t } = useI18n()
   const [userId, setUserId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
@@ -56,7 +58,7 @@ export default function FriendsScreen() {
       setSearchResults(results)
       setSearchDone(true)
     } catch {
-      Alert.alert('Erreur', 'Impossible d\'effectuer la recherche')
+      Alert.alert('Erreur', t.searchError)
     } finally {
       setSearching(false)
     }
@@ -68,7 +70,7 @@ export default function FriendsScreen() {
       await sendFriendRequest(userId, addresseeId)
       setSentRequests(prev => new Set(prev).add(addresseeId))
     } catch {
-      Alert.alert('Erreur', 'Impossible d\'envoyer la demande')
+      Alert.alert('Erreur', t.sendError)
     } finally {
       setActionLoading(null)
     }
@@ -91,7 +93,7 @@ export default function FriendsScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={24} color="white" strokeWidth={2.5} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Amis</Text>
+        <Text style={styles.headerTitle}>{t.friends}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -102,11 +104,11 @@ export default function FriendsScreen() {
         keyboardShouldPersistTaps="handled"
       >
         {/* ── Search ── */}
-        <Text style={styles.sectionLabel}>Rechercher un ami</Text>
+        <Text style={styles.sectionLabel}>{t.searchFriend}</Text>
         <View style={styles.searchRow}>
           <TextInput
             style={styles.searchInput}
-            placeholder="Email de l'utilisateur…"
+            placeholder={t.searchPlaceholder}
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -129,7 +131,7 @@ export default function FriendsScreen() {
         {searchDone && (
           <View style={{ marginBottom: 8 }}>
             {searchResults.length === 0 ? (
-              <Text style={styles.emptyText}>Aucun utilisateur trouvé</Text>
+              <Text style={styles.emptyText}>{t.noUserFound}</Text>
             ) : searchResults.map(u => {
               const alreadySent = sentRequests.has(u.user_id)
               const alreadyFriend = friends.some(f => f.friend_id === u.user_id)
@@ -144,13 +146,13 @@ export default function FriendsScreen() {
                       <Star size={10} color="#f59e0b" fill="#f59e0b" />
                       <Text style={styles.statText}>{Number(u.total_xp).toLocaleString()} XP</Text>
                       <Flame size={10} color="#f97316" fill="#f97316" />
-                      <Text style={styles.statText}>{u.max_streak} j</Text>
+                      <Text style={styles.statText}>{u.max_streak} {t.shortDays}</Text>
                     </View>
                   </View>
                   {alreadyFriend ? (
-                    <View style={styles.tagFriend}><Text style={styles.tagFriendText}>Ami</Text></View>
+                    <View style={styles.tagFriend}><Text style={styles.tagFriendText}>{t.alreadyFriend}</Text></View>
                   ) : alreadySent ? (
-                    <View style={styles.tagSent}><Text style={styles.tagSentText}>Envoyé</Text></View>
+                    <View style={styles.tagSent}><Text style={styles.tagSentText}>{t.requestSent}</Text></View>
                   ) : (
                     <TouchableOpacity
                       style={[styles.iconBtn, { backgroundColor: colors.primary }]}
@@ -173,7 +175,7 @@ export default function FriendsScreen() {
         {pendingRequests.length > 0 && (
           <>
             <Text style={[styles.sectionLabel, { marginTop: 20 }]}>
-              Demandes reçues ({pendingRequests.length})
+              {t.pendingRequests} ({pendingRequests.length})
             </Text>
             {pendingRequests.map(req => (
               <View key={req.friendship_id} style={styles.card}>
@@ -182,7 +184,7 @@ export default function FriendsScreen() {
                 </View>
                 <View style={styles.cardInfo}>
                   <Text style={styles.cardEmail} numberOfLines={1}>{req.email}</Text>
-                  <Text style={styles.cardMeta}>Demande d'ami</Text>
+                  <Text style={styles.cardMeta}>{t.friendRequest}</Text>
                 </View>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <TouchableOpacity
@@ -207,7 +209,7 @@ export default function FriendsScreen() {
 
         {/* ── Friends list ── */}
         <Text style={[styles.sectionLabel, { marginTop: 20 }]}>
-          Mes amis ({friends.length})
+          {t.myFriends} ({friends.length})
         </Text>
 
         {loadingFriends ? (
@@ -215,8 +217,8 @@ export default function FriendsScreen() {
         ) : friends.length === 0 ? (
           <View style={styles.emptyState}>
             <Users size={44} color={colors.border} strokeWidth={1.5} />
-            <Text style={styles.emptyTitle}>Aucun ami pour l'instant</Text>
-            <Text style={styles.emptySubtitle}>Recherchez des utilisateurs par email</Text>
+            <Text style={styles.emptyTitle}>{t.noFriendsYet}</Text>
+            <Text style={styles.emptySubtitle}>{t.noFriendsDesc}</Text>
           </View>
         ) : friends.map(f => (
           <View key={f.friendship_id} style={[styles.card, styles.friendCard]}>
@@ -231,9 +233,9 @@ export default function FriendsScreen() {
                 <Star size={10} color="#f59e0b" fill="#f59e0b" />
                 <Text style={styles.statText}>{Number(f.total_xp).toLocaleString()} XP</Text>
                 <Flame size={10} color="#f97316" fill="#f97316" />
-                <Text style={styles.statText}>{f.max_streak} j</Text>
+                <Text style={styles.statText}>{f.max_streak} {t.shortDays}</Text>
                 <BookOpen size={10} color={colors.primary} />
-                <Text style={styles.statText}>{Number(f.cases_completed)} cas</Text>
+                <Text style={styles.statText}>{Number(f.cases_completed)} {t.cases.toLowerCase()}</Text>
               </View>
             </View>
           </View>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, Alert, ScrollView, Platform } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import { HeartPulse } from 'lucide-react-native'
 import { useRouter } from 'expo-router'
 import { supabase } from '../lib/supabase'
 import { getProfile } from '../lib/queries'
@@ -33,7 +34,7 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         <View style={styles.logoContainer}>
-          <Text style={styles.logoEmoji}>❤️</Text>
+          <HeartPulse size={52} color={colors.primary} strokeWidth={1.5} />
           <Text style={styles.logoText}>MEDIQ</Text>
         </View>
 
@@ -98,10 +99,7 @@ const styles = StyleSheet.create({
   logoContainer: {
     alignItems: 'center',
     marginBottom: 32,
-  },
-  logoEmoji: {
-    fontSize: 48,
-    marginBottom: 4,
+    gap: 8,
   },
   logoText: {
     fontSize: 28,

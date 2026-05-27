@@ -4,14 +4,16 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { upsertProfile } from '@/lib/queries'
 import type { ProfTitle } from '@/lib/types'
+import { HeartPulse, Stethoscope, Syringe, Baby, HeartHandshake, GraduationCap, Sparkles } from 'lucide-react'
+import type { LucideProps } from 'lucide-react'
 
-const TITLES: { value: ProfTitle; label: string; emoji: string; color: string; bg: string }[] = [
-  { value: 'medecin',       label: 'Médecin',         emoji: '🩺', color: '#166534', bg: '#f0fdf4' },
-  { value: 'infirmier',     label: 'Infirmier(ère)',   emoji: '💉', color: '#0c4a6e', bg: '#f0f9ff' },
-  { value: 'sage_femme',    label: 'Sage-femme',       emoji: '👶', color: '#4c1d95', bg: '#faf5ff' },
-  { value: 'aide_soignant', label: 'Aide-soignant(e)', emoji: '🏥', color: '#9a3412', bg: '#fff7ed' },
-  { value: 'etudiant',      label: 'Étudiant(e)',      emoji: '📚', color: '#374151', bg: '#f9fafb' },
-  { value: 'autre',         label: 'Autre',            emoji: '✨', color: '#71717a', bg: '#fafafa' },
+const TITLES: { value: ProfTitle; label: string; Icon: React.ComponentType<LucideProps>; color: string; bg: string }[] = [
+  { value: 'medecin',       label: 'Médecin',         Icon: Stethoscope,   color: '#166534', bg: '#f0fdf4' },
+  { value: 'infirmier',     label: 'Infirmier(ère)',   Icon: Syringe,       color: '#0c4a6e', bg: '#f0f9ff' },
+  { value: 'sage_femme',    label: 'Sage-femme',       Icon: Baby,          color: '#4c1d95', bg: '#faf5ff' },
+  { value: 'aide_soignant', label: 'Aide-soignant(e)', Icon: HeartHandshake,color: '#9a3412', bg: '#fff7ed' },
+  { value: 'etudiant',      label: 'Étudiant(e)',      Icon: GraduationCap, color: '#374151', bg: '#f9fafb' },
+  { value: 'autre',         label: 'Autre',            Icon: Sparkles,      color: '#71717a', bg: '#fafafa' },
 ]
 
 export default function OnboardingPage() {
@@ -60,7 +62,7 @@ export default function OnboardingPage() {
       <div style={{ width: '100%', maxWidth: 480 }}>
 
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ width: 56, height: 56, borderRadius: 18, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, margin: '0 auto 12px' }}>❤️</div>
+          <div style={{ width: 56, height: 56, borderRadius: 18, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}><HeartPulse size={28} color="white" strokeWidth={2} /></div>
           <div style={{ fontWeight: 900, fontSize: 22, color: 'white' }}>Créez votre profil</div>
           <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 4 }}>Étape {step} / 3</div>
         </div>
@@ -92,7 +94,7 @@ export default function OnboardingPage() {
                     cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 8,
                     fontFamily: 'system-ui,sans-serif',
                   }}>
-                    <span style={{ fontSize: 18 }}>{t.emoji}</span>
+                    <t.Icon size={20} color={title === t.value ? t.color : '#94a3b8'} strokeWidth={1.75} />
                     <span style={{ fontSize: 13, fontWeight: 700, color: title === t.value ? t.color : '#374151' }}>{t.label}</span>
                   </button>
                 ))}

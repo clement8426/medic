@@ -154,6 +154,16 @@ export async function getQuizzesByCase(caseId: string): Promise<Quiz[]> {
   return data ?? []
 }
 
+export async function getQuizzesByCases(caseIds: string[]): Promise<{ id: string; case_id: string }[]> {
+  if (caseIds.length === 0) return []
+  const { data, error } = await supabase
+    .from('quizzes')
+    .select('id, case_id')
+    .in('case_id', caseIds)
+  if (error) return []
+  return data ?? []
+}
+
 // ── User progress ─────────────────────────────────────────────────────────────
 
 export async function saveQuizAnswer(
@@ -169,14 +179,38 @@ export async function saveQuizAnswer(
     interval_days: number
   }
 ): Promise<void> {
-  await supabase.from('user_progress').upsert(
-    {
-      user_id: userId,
-      ...payload,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id,quiz_id' }
-  )
+  const { data: existing } = await supabase
+    .from('user_progress')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('quiz_id', payload.quiz_id)
+    .maybeSingle()
+
+  if (existing) {
+    const { error } = await supabase
+      .from('user_progress')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', existing.id)
+    if (error) console.error('[saveQuizAnswer] error:', error)
+  } else {
+    const { error } = await supabase
+      .from('user_progress')
+      .insert({ user_id: userId, ...payload, updated_at: new Date().toISOString() })
+    if (error) console.error('[saveQuizAnswer] error:', error)
+  }
+}
+
+export async function getUserSidebarStats(userId: string): Promise<{ xp: number; streak: number }> {
+  const { data } = await supabase
+    .from('user_module_stats')
+    .select('xp, current_streak, last_activity_at')
+    .eq('user_id', userId)
+  if (!data || data.length === 0) return { xp: 0, streak: 0 }
+  const xp = data.reduce((sum, r) => sum + (r.xp ?? 0), 0)
+  const latest = data.sort((a, b) =>
+    new Date(b.last_activity_at ?? 0).getTime() - new Date(a.last_activity_at ?? 0).getTime()
+  )[0]
+  return { xp, streak: latest.current_streak ?? 0 }
 }
 
 export async function getUserProgress(userId: string, caseIds: string[]): Promise<UserProgress[]> {
@@ -268,7 +302,7 @@ export async function saveSessionStats(
     const prevCorrect = Math.round((existing.correct_rate ?? 0) * (existing.total_quizzes_answered ?? 0))
     const newRate = newTotal > 0 ? (prevCorrect + correct) / newTotal : 0
     const newXp = (existing.xp ?? 0) + xpGained
-    await supabase.from('user_module_stats').update({
+    const { error: updateErr } = await supabase.from('user_module_stats').update({
       cases_completed: (existing.cases_completed ?? 0) + 1,
       total_quizzes_answered: newTotal,
       correct_rate: newRate,
@@ -278,9 +312,10 @@ export async function saveSessionStats(
       longest_streak: Math.max(existing.longest_streak ?? 0, newStreak),
       last_activity_at: nowStr,
     }).eq('user_id', userId).eq('module_id', moduleId)
+    if (updateErr) console.error('[saveSessionStats] update error:', updateErr)
   } else {
     const rate = total > 0 ? correct / total : 0
-    await supabase.from('user_module_stats').insert({
+    const { error: insertErr } = await supabase.from('user_module_stats').insert({
       user_id: userId,
       module_id: moduleId,
       cases_completed: 1,
@@ -292,6 +327,7 @@ export async function saveSessionStats(
       longest_streak: newStreak,
       last_activity_at: nowStr,
     })
+    if (insertErr) console.error('[saveSessionStats] insert error:', insertErr)
   }
 }
 

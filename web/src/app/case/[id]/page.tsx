@@ -4,10 +4,12 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { Sidebar } from '@/components/ui/Sidebar'
 import { supabase } from '@/lib/supabase'
-import { getCaseById, getModuleBySlug } from '@/lib/queries'
+import { getCaseById, getModuleBySlug, getUserSidebarStats } from '@/lib/queries'
 import { resolveImageUrl, resolveFocusUrl } from '@/lib/image-utils'
 import { ModuleIcon } from '@/components/ui/ModuleIcon'
 import type { Module, Case } from '@/lib/types'
+import { getModuleName } from '@/lib/types'
+import { useI18n } from '@/lib/i18n'
 
 function DifficultyDots({ level }: { level: number }) {
   return (
@@ -167,13 +169,14 @@ function EcgViewer({ caseData, moduleSlug }: { caseData: Case; moduleSlug: strin
 export default function CasePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
+  const { lang } = useI18n()
   const [caseData, setCaseData] = useState<Case | null>(null)
   const [mod, setMod] = useState<Module | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [userInitials, setUserInitials] = useState('?')
-  const [userXp] = useState(0)
-  const [userStreak] = useState(0)
+  const [userXp, setUserXp] = useState(0)
+  const [userStreak, setUserStreak] = useState(0)
 
   useEffect(() => {
     async function load() {
@@ -197,8 +200,9 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
     }
     load()
     supabase.auth.getUser().then(({ data }) => {
-      const email = data?.user?.email ?? ''
-      if (email) setUserInitials(email.slice(0, 2).toUpperCase())
+      const u = data?.user
+      if (u?.email) setUserInitials(u.email.slice(0, 2).toUpperCase())
+      if (u) getUserSidebarStats(u.id).then(({ xp, streak }) => { setUserXp(xp); setUserStreak(streak) })
     })
   }, [id])
 
@@ -236,7 +240,7 @@ export default function CasePage({ params }: { params: Promise<{ id: string }> }
               background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0',
               borderRadius: 99, padding: '3px 11px', fontSize: 11, fontWeight: 700,
             }}>
-              <ModuleIcon icon={mod.icon} size={16} color="#0F766E" strokeWidth={2} /> {mod.name_fr}
+              <ModuleIcon icon={mod.icon} size={16} color="#0F766E" strokeWidth={2} /> {getModuleName(mod, lang)}
             </span>
           )}
         </div>

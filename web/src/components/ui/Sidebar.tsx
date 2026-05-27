@@ -5,15 +5,16 @@ import { Home, BookOpen, Trophy, User, Settings, HeartPulse, LogOut, Users, Star
 import { checkIsAdmin } from '@/lib/queries'
 import { useEffect, useState } from 'react'
 import type { LucideProps } from 'lucide-react'
+import { useI18n } from '@/lib/i18n'
 
-type NavItem = { href: string; Icon: React.ComponentType<LucideProps>; label: string }
+type NavItem = { href: string; Icon: React.ComponentType<LucideProps>; key: string }
 
-const NAV: NavItem[] = [
-  { href: '/dashboard',   Icon: Home,      label: 'Tableau de bord' },
-  { href: '/leaderboard', Icon: Trophy,    label: 'Classement'      },
-  { href: '/friends',     Icon: Users,     label: 'Amis'            },
-  { href: '/profile',     Icon: User,      label: 'Profil'          },
-  { href: '/settings',    Icon: Settings,  label: 'Paramètres'      },
+const NAV_ITEMS: NavItem[] = [
+  { href: '/dashboard',   Icon: Home,      key: 'navDashboard'   },
+  { href: '/leaderboard', Icon: Trophy,    key: 'navLeaderboard' },
+  { href: '/friends',     Icon: Users,     key: 'navFriends'     },
+  { href: '/profile',     Icon: User,      key: 'navProfile'     },
+  { href: '/settings',    Icon: Settings,  key: 'navSettings'    },
 ]
 
 export function Sidebar({ xp = 0, streak = 0, initials = '?', avatarUrl }: {
@@ -21,11 +22,14 @@ export function Sidebar({ xp = 0, streak = 0, initials = '?', avatarUrl }: {
 }) {
   const pathname = usePathname()
   const router   = useRouter()
+  const { t }    = useI18n()
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     checkIsAdmin().then(setIsAdmin).catch(() => {})
   }, [])
+
+  const NAV = NAV_ITEMS.map(item => ({ ...item, label: t[item.key as keyof typeof t] as string }))
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -53,7 +57,7 @@ export function Sidebar({ xp = 0, streak = 0, initials = '?', avatarUrl }: {
             </div>
             <div>
               <div style={{ fontWeight: 900, color: 'white', fontSize: 16 }}>MEDIQ</div>
-              <div style={{ color: 'rgba(167,243,208,0.6)', fontSize: 10, fontWeight: 700 }}>Medical Training</div>
+              <div style={{ color: 'rgba(167,243,208,0.6)', fontSize: 10, fontWeight: 700 }}>{t.sidebarTagline}</div>
             </div>
           </div>
           <div>
@@ -64,7 +68,7 @@ export function Sidebar({ xp = 0, streak = 0, initials = '?', avatarUrl }: {
               </span>
               <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
                 <Flame size={10} color="rgba(255,255,255,0.4)" strokeWidth={2} />
-                {streak} j
+                {streak} {t.shortDays}
               </span>
             </div>
             <div style={{ height: 4, background: 'rgba(255,255,255,0.1)', borderRadius: 99 }}>
@@ -141,11 +145,11 @@ export function Sidebar({ xp = 0, streak = 0, initials = '?', avatarUrl }: {
               }}
             >
               <LogOut size={14} color="rgba(167,243,208,0.55)" />
-              Déconnexion
+              {t.logout}
             </button>
           </div>
           <a href="/rgpd" style={{ fontSize: 10, color: 'rgba(167,243,208,0.35)', fontWeight: 600, textDecoration: 'none', letterSpacing: '0.04em' }}>
-            Politique de confidentialité
+            {t.privacy}
           </a>
         </div>
       </aside>
